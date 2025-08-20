@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Matching System V0.1</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🦷 Dental Matching System</h1>
+            <p>Versión 0.1 - Panel de Datos</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Pacientes</h3>
+                <div id="total-pacientes" class="stat-number">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Estudiantes</h3>
+                <div id="total-estudiantes" class="stat-number">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Asignaciones</h3>
+                <div id="total-asignaciones" class="stat-number">-</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('pacientes')">Pacientes</button>
+            <button class="tab-button" onclick="showTab('estudiantes')">Estudiantes</button>
+            <button class="tab-button" onclick="showTab('asignaciones')">Asignaciones</button>
+        </div>
+
+        <div class="tab-content">
+            <!-- Tabla de Pacientes -->
+            <div id="pacientes" class="tab-pane active">
+                <h2>Lista de Pacientes</h2>
+                <div id="loading-pacientes" class="loading">Cargando...</div>
+                <table id="tabla-pacientes" class="data-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Teléfono</th>
+                            <th>Ciudad</th>
+                            <th>Tratamiento</th>
+                            <th>Dolor</th>
+                            <th>Prioridad</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-pacientes"></tbody>
+                </table>
+            </div>
+
+            <!-- Tabla de Estudiantes -->
+            <div id="estudiantes" class="tab-pane">
+                <h2>Lista de Estudiantes</h2>
+                <div id="loading-estudiantes" class="loading">Cargando...</div>
+                <table id="tabla-estudiantes" class="data-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre</th>
+                            <th>Año</th>
+                            <th>Ciudad</th>
+                            <th>Casos Activos</th>
+                            <th>Completados</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-estudiantes"></tbody>
+                </table>
+            </div>
+
+            <!-- Tabla de Asignaciones -->
+            <div id="asignaciones" class="tab-pane">
+                <h2>Lista de Asignaciones</h2>
+                <div id="loading-asignaciones" class="loading">Cargando...</div>
+                <table id="tabla-asignaciones" class="data-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Paciente</th>
+                            <th>Estudiante</th>
+                            <th>Tratamiento</th>
+                            <th>Score</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-asignaciones"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="api-status">
+            <h3>Estado de la API</h3>
+            <div id="api-status" class="status-indicator">Verificando...</div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
