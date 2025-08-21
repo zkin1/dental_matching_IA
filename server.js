@@ -7,6 +7,7 @@ require('dotenv').config();
 const pacientesRoutes = require('./routes/pacientes');
 const estudiantesRoutes = require('./routes/estudiantes');
 const asignacionesRoutes = require('./routes/asignaciones');
+const syncRoutes = require('./routes/sync');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +22,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/pacientes', pacientesRoutes);
 app.use('/api/estudiantes', estudiantesRoutes);
 app.use('/api/asignaciones', asignacionesRoutes);
+app.use('/api/sync', syncRoutes);
 
 // Ruta principal
 app.get('/', (req, res) => {

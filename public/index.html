@@ -3,52 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dental Matching System V0.1</title>
+    <title>Dental Matching System V0.2</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>🦷 Dental Matching System</h1>
-            <p>Versión 0.1 - Panel de Datos</p>
+            <p>Versión 0.2 - Panel de Control con Google Sheets</p>
+            <nav class="nav-links">
+                <a href="sync.html">🔄 Sincronización</a>
+                <a href="#" onclick="refreshAllData()">🔃 Actualizar</a>
+            </nav>
         </header>
+
+        <!-- Estado de Conexión Google Sheets -->
+        <div class="connection-status">
+            <div class="connection-card">
+                <div class="connection-indicator" id="sheets-status">
+                    <span class="connection-icon">🔍</span>
+                    <span class="connection-text">Verificando Google Sheets...</span>
+                </div>
+                <div class="connection-details">
+                    <span id="last-sync">Última sincronización: Nunca</span>
+                </div>
+            </div>
+        </div>
 
         <div class="stats-grid">
             <div class="stat-card">
                 <h3>Pacientes</h3>
                 <div id="total-pacientes" class="stat-number">-</div>
+                <div class="stat-change" id="pacientes-change">-</div>
             </div>
             <div class="stat-card">
                 <h3>Estudiantes</h3>
                 <div id="total-estudiantes" class="stat-number">-</div>
+                <div class="stat-change" id="estudiantes-change">-</div>
             </div>
             <div class="stat-card">
                 <h3>Asignaciones</h3>
                 <div id="total-asignaciones" class="stat-number">-</div>
+                <div class="stat-change" id="asignaciones-change">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Sincronizaciones</h3>
+                <div id="total-syncs" class="stat-number">-</div>
+                <div class="stat-change" id="syncs-change">Nuevos hoy</div>
             </div>
         </div>
 
         <div class="tabs">
-            <button class="tab-button active" onclick="showTab('pacientes')">Pacientes</button>
-            <button class="tab-button" onclick="showTab('estudiantes')">Estudiantes</button>
-            <button class="tab-button" onclick="showTab('asignaciones')">Asignaciones</button>
+            <button class="tab-button active" onclick="showTab('pacientes', this)">📋 Pacientes</button>
+            <button class="tab-button" onclick="showTab('estudiantes', this)">🎓 Estudiantes</button>
+            <button class="tab-button" onclick="showTab('asignaciones', this)">🔗 Asignaciones</button>
+            <button class="tab-button" onclick="showTab('sync-log', this)">📊 Log Sync</button>
         </div>
 
         <div class="tab-content">
             <!-- Tabla de Pacientes -->
             <div id="pacientes" class="tab-pane active">
-                <h2>Lista de Pacientes</h2>
+                <div class="tab-header">
+                    <h2>Lista de Pacientes</h2>
+                    <div class="tab-controls">
+                        <button onclick="loadPacientes()" class="btn-refresh">🔄 Actualizar</button>
+                        <select id="pacientes-filter" onchange="filterPacientes()">
+                            <option value="">Todos</option>
+                            <option value="alta">Prioridad Alta</option>
+                            <option value="moderada">Prioridad Moderada</option>
+                            <option value="baja">Prioridad Baja</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="loading-pacientes" class="loading">Cargando...</div>
+                <div class="table-info" id="pacientes-info" style="display: none;">
+                    <span>📊 Mostrando <strong id="pacientes-showing">0</strong> de <strong id="pacientes-total">0</strong> pacientes</span>
+                </div>
                 <table id="tabla-pacientes" class="data-table" style="display: none;">
                     <thead>
                         <tr>
                             <th>ID</th>
                             <th>Nombre</th>
+                            <th>Edad</th>
                             <th>Teléfono</th>
                             <th>Ciudad</th>
                             <th>Tratamiento</th>
                             <th>Dolor</th>
                             <th>Prioridad</th>
+                            <th>Registro</th>
                         </tr>
                     </thead>
                     <tbody id="tbody-pacientes"></tbody>
@@ -57,14 +99,29 @@
 
             <!-- Tabla de Estudiantes -->
             <div id="estudiantes" class="tab-pane">
-                <h2>Lista de Estudiantes</h2>
+                <div class="tab-header">
+                    <h2>Lista de Estudiantes</h2>
+                    <div class="tab-controls">
+                        <button onclick="loadEstudiantes()" class="btn-refresh">🔄 Actualizar</button>
+                        <select id="estudiantes-filter" onchange="filterEstudiantes()">
+                            <option value="">Todos</option>
+                            <option value="activo">Activos</option>
+                            <option value="completo">Completados</option>
+                            <option value="disponible">Disponibles</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="loading-estudiantes" class="loading">Cargando...</div>
+                <div class="table-info" id="estudiantes-info" style="display: none;">
+                    <span>📊 Mostrando <strong id="estudiantes-showing">0</strong> de <strong id="estudiantes-total">0</strong> estudiantes</span>
+                </div>
                 <table id="tabla-estudiantes" class="data-table" style="display: none;">
                     <thead>
                         <tr>
                             <th>Código</th>
                             <th>Nombre</th>
                             <th>Año</th>
+                            <th>Universidad</th>
                             <th>Ciudad</th>
                             <th>Casos Activos</th>
                             <th>Completados</th>
@@ -77,8 +134,22 @@
 
             <!-- Tabla de Asignaciones -->
             <div id="asignaciones" class="tab-pane">
-                <h2>Lista de Asignaciones</h2>
+                <div class="tab-header">
+                    <h2>Lista de Asignaciones</h2>
+                    <div class="tab-controls">
+                        <button onclick="loadAsignaciones()" class="btn-refresh">🔄 Actualizar</button>
+                        <select id="asignaciones-filter" onchange="filterAsignaciones()">
+                            <option value="">Todas</option>
+                            <option value="activo">Activas</option>
+                            <option value="completado">Completadas</option>
+                            <option value="cancelado">Canceladas</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="loading-asignaciones" class="loading">Cargando...</div>
+                <div class="table-info" id="asignaciones-info" style="display: none;">
+                    <span>📊 Mostrando <strong id="asignaciones-showing">0</strong> de <strong id="asignaciones-total">0</strong> asignaciones</span>
+                </div>
                 <table id="tabla-asignaciones" class="data-table" style="display: none;">
                     <thead>
                         <tr>
@@ -94,12 +165,63 @@
                     <tbody id="tbody-asignaciones"></tbody>
                 </table>
             </div>
+
+            <!-- Log de Sincronización -->
+            <div id="sync-log" class="tab-pane">
+                <div class="tab-header">
+                    <h2>Log de Sincronización</h2>
+                    <div class="tab-controls">
+                        <button onclick="refreshSyncLog()" class="btn-refresh">🔄 Actualizar</button>
+                        <button onclick="clearSyncLog()" class="btn-clear">🗑️ Limpiar</button>
+                    </div>
+                </div>
+                <div class="sync-stats">
+                    <div class="sync-stat-item">
+                        <span class="sync-stat-label">Última Sync:</span>
+                        <span id="last-sync-time" class="sync-stat-value">-</span>
+                    </div>
+                    <div class="sync-stat-item">
+                        <span class="sync-stat-label">Total Procesados:</span>
+                        <span id="total-processed" class="sync-stat-value">-</span>
+                    </div>
+                    <div class="sync-stat-item">
+                        <span class="sync-stat-label">Nuevos:</span>
+                        <span id="new-patients" class="sync-stat-value">-</span>
+                    </div>
+                    <div class="sync-stat-item">
+                        <span class="sync-stat-label">Actualizados:</span>
+                        <span id="updated-patients" class="sync-stat-value">-</span>
+                    </div>
+                </div>
+                <div id="sync-log-content" class="log-content">
+                    <div class="log-entry log-info">
+                        <span class="log-time">[Sistema]</span>
+                        <span class="log-message">Dashboard iniciado - Verificando conexiones...</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="api-status">
-            <h3>Estado de la API</h3>
-            <div id="api-status" class="status-indicator">Verificando...</div>
+            <h3>Estado del Sistema</h3>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="status-label">API Backend:</span>
+                    <div id="api-status" class="status-indicator">Verificando...</div>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Base de Datos:</span>
+                    <div id="db-status" class="status-indicator">Verificando...</div>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Google Sheets:</span>
+                    <div id="google-sheets-status" class="status-indicator">Verificando...</div>
+                </div>
+            </div>
         </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
     </div>
 
     <script src="script.js"></script>

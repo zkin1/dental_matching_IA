@@ -8,13 +8,20 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["odontologia", "matching", "pacientes", "estudiantes"],
+  "keywords": [
+    "odontologia",
+    "matching",
+    "pacientes",
+    "estudiantes"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "google-spreadsheet": "^5.0.2",
+    "googleapis": "^156.0.0",
     "mysql2": "^3.14.3"
   },
   "devDependencies": {
