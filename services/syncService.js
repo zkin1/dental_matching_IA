@@ -3,54 +3,95 @@ const { getConnection } = require('../config/database');
 
 class SyncService {
     async syncPacientes() {
-        try {
-            console.log('🔄 Iniciando sincronización con Google Sheets...');
-            
-            // Primero, obtener los headers para debugging
-            await googleSheetsService.getHeaders();
-            
-            // Obtener pacientes de Google Sheets
-            const pacientesSheets = await googleSheetsService.getPacientes();
-            
-            if (pacientesSheets.length === 0) {
-                console.log('ℹ️ No se encontraron pacientes válidos en Google Sheets');
-                return { success: true, processed: 0, message: 'No hay pacientes para procesar' };
-            }
-
-            console.log(`📥 ${pacientesSheets.length} pacientes válidos obtenidos de Google Sheets`);
-
-            let processed = 0;
-            let errors = 0;
-
-            // Procesar cada paciente
-            for (const paciente of pacientesSheets) {
-                try {
-                    await this.processPaciente(paciente);
-                    processed++;
-                    console.log(`✅ Paciente procesado: ${paciente.nombre || paciente.nombre_completo}`);
-                } catch (error) {
-                    errors++;
-                    console.error(`❌ Error procesando paciente ${paciente.nombre || paciente.nombre_completo}:`, error.message);
-                }
-            }
-
-            console.log(`🎉 Sincronización completada: ${processed} procesados, ${errors} errores`);
-            
-            return {
-                success: true,
-                processed,
-                errors,
-                message: `${processed} pacientes sincronizados correctamente`
-            };
-
-        } catch (error) {
-            console.error('❌ Error en sincronización:', error.message);
-            return {
-                success: false,
-                error: error.message
+    try {
+        console.log('🔄 Iniciando sincronización con Google Sheets...');
+        
+        // Primero, obtener los headers para debugging
+        await googleSheetsService.getHeaders();
+        
+        // Obtener pacientes de Google Sheets
+        const pacientesSheets = await googleSheetsService.getPacientes();
+        
+        if (pacientesSheets.length === 0) {
+            console.log('ℹ️ No se encontraron pacientes válidos en Google Sheets');
+            return { 
+                success: true, 
+                processed: 0, 
+                skipped: 0, 
+                updated: 0, 
+                created: 0,
+                errors: 0,
+                message: 'No hay pacientes para procesar' 
             };
         }
+
+        console.log(`📥 ${pacientesSheets.length} pacientes válidos obtenidos de Google Sheets`);
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        let errors = 0;
+
+        // Procesar cada paciente
+        for (const paciente of pacientesSheets) {
+            try {
+                const result = await this.processPaciente(paciente);
+                
+                switch (result.action) {
+                    case 'created':
+                        created++;
+                        console.log(`✅ Nuevo paciente creado: ${paciente.nombre || paciente.nombre_completo}`);
+                        break;
+                    case 'updated':
+                        updated++;
+                        console.log(`🔄 Paciente actualizado: ${paciente.nombre || paciente.nombre_completo}`);
+                        break;
+                    case 'skipped':
+                        skipped++;
+                        // Log más silencioso para pacientes omitidos
+                        break;
+                    default:
+                        console.log(`📝 Paciente procesado: ${paciente.nombre || paciente.nombre_completo}`);
+                }
+            } catch (error) {
+                errors++;
+                console.error(`❌ Error procesando paciente ${paciente.nombre || paciente.nombre_completo}:`, error.message);
+            }
+        }
+
+        const totalProcessed = created + updated;
+        let message;
+        
+        if (totalProcessed === 0 && skipped > 0) {
+            message = `No hay pacientes nuevos. ${skipped} pacientes ya existían sin cambios`;
+        } else if (created === 0 && updated > 0) {
+            message = `${updated} pacientes actualizados, ${skipped} sin cambios`;
+        } else if (created > 0 && updated === 0) {
+            message = `${created} pacientes nuevos agregados, ${skipped} ya existían`;
+        } else {
+            message = `${created} nuevos, ${updated} actualizados, ${skipped} sin cambios`;
+        }
+
+        console.log(`🎉 Sincronización completada: ${message}${errors > 0 ? `, ${errors} errores` : ''}`);
+        
+        return {
+            success: true,
+            processed: totalProcessed,
+            created,
+            updated,
+            skipped,
+            errors,
+            message
+        };
+
+    } catch (error) {
+        console.error('❌ Error en sincronización:', error.message);
+        return {
+            success: false,
+            error: error.message
+        };
     }
+}
 
     async processPaciente(paciente) {
     const db = await getConnection();
@@ -85,12 +126,27 @@ class SyncService {
 
         // Verificar si el paciente ya existe (por email o teléfono)
         const [existing] = await db.execute(
-            'SELECT id, email, telefono FROM pacientes WHERE email = ? OR telefono = ?',
+            'SELECT id, email, telefono, nombre_completo, nivel_dolor, fecha_actualizacion FROM pacientes WHERE email = ? OR telefono = ?',
             [cleanPaciente.email, cleanPaciente.telefono]
         );
 
         if (existing.length > 0) {
-            // Actualizar paciente existente
+            const existingPatient = existing[0];
+            
+            // Comparar datos para ver si hay cambios significativos
+            const hasChanges = (
+                existingPatient.nombre_completo !== cleanPaciente.nombre ||
+                existingPatient.nivel_dolor !== cleanPaciente.nivel_dolor ||
+                !existingPatient.fecha_actualizacion || 
+                new Date() - new Date(existingPatient.fecha_actualizacion) > 24 * 60 * 60 * 1000 // 24 horas
+            );
+
+            if (!hasChanges) {
+                console.log(`⏭️ Paciente sin cambios, omitido: ${cleanPaciente.nombre}`);
+                return { action: 'skipped', reason: 'no_changes' };
+            }
+
+            // Actualizar paciente existente solo si hay cambios
             await db.execute(`
                 UPDATE pacientes SET 
                     nombre_completo = ?, 
@@ -116,13 +172,14 @@ class SyncService {
                 cleanPaciente.dias_disponibles,
                 cleanPaciente.horario_preferencia,
                 cleanPaciente.disponibilidad_cita,
-                existing[0].id
+                existingPatient.id
             ]);
             
             console.log(`🔄 Paciente actualizado: ${cleanPaciente.nombre}`);
+            return { action: 'updated', id: existingPatient.id };
         } else {
             // Insertar nuevo paciente
-            await db.execute(`
+            const [result] = await db.execute(`
                 INSERT INTO pacientes (
                     timestamp,
                     nombre_completo, 
@@ -164,11 +221,11 @@ class SyncService {
             ]);
             
             console.log(`➕ Nuevo paciente agregado: ${cleanPaciente.nombre}`);
+            return { action: 'created', id: result.insertId };
         }
 
     } catch (dbError) {
         console.error(`❌ Error de base de datos para ${paciente.nombre || paciente.nombre_completo}:`, dbError.message);
-        console.error('📋 Datos del paciente:', JSON.stringify(paciente, null, 2));
         throw dbError;
     }
 }

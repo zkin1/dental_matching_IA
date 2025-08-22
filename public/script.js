@@ -1,6 +1,6 @@
 // ====================================
 //   SCRIPT.JS - Dashboard Principal
-//   Dental Matching System V0.2
+//   Dental 1ing System V0.2
 // ====================================
 
 // Estado de la aplicación
@@ -651,6 +651,55 @@ function formatNumber(num) {
     if (typeof num !== 'number') return '0';
     return num.toLocaleString();
 }
+
+// Función para obtener estado del scheduler automático
+async function loadSchedulerStatus() {
+    try {
+        const response = await fetch('/api/sync/scheduler');
+        const result = await response.json();
+        
+        if (result.success) {
+            updateSchedulerDisplay(result.data);
+        }
+    } catch (error) {
+        console.error('Error cargando estado del scheduler:', error);
+    }
+}
+
+// Actualizar display del scheduler
+function updateSchedulerDisplay(data) {
+    const indicator = document.getElementById('auto-sync-indicator');
+    if (indicator) {
+        const isRunning = data.scheduler.isRunning;
+        indicator.innerHTML = `
+            <span class="status-icon">${isRunning ? '🔄' : '⏸️'}</span>
+            <span class="status-text">Sincronización ${isRunning ? 'Automática Activa' : 'Manual'}</span>
+        `;
+        indicator.className = `status-indicator ${isRunning ? 'status-ok' : 'status-warning'}`;
+    }
+    
+    // Actualizar estadísticas de sync automático si existen
+    const autoSyncStats = document.getElementById('auto-sync-stats');
+    if (autoSyncStats && data.scheduler) {
+        autoSyncStats.innerHTML = `
+            <p><strong>Ejecuciones totales:</strong> ${data.scheduler.stats.totalRuns}</p>
+            <p><strong>Exitosas:</strong> ${data.scheduler.stats.successfulRuns}</p>
+            <p><strong>Fallidas:</strong> ${data.scheduler.stats.failedRuns}</p>
+            <p><strong>Última ejecución:</strong> ${data.scheduler.stats.lastRun ? new Date(data.scheduler.stats.lastRun).toLocaleString() : 'Nunca'}</p>
+        `;
+    }
+}
+
+// Cargar estado del scheduler al iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    // ... código existente ...
+    
+    // Cargar estado del scheduler
+    loadSchedulerStatus();
+    
+    // Actualizar cada 30 segundos
+    setInterval(loadSchedulerStatus, 30000);
+});
 
 // ====================================
 //   FUNCIONES GLOBALES PARA HTML
