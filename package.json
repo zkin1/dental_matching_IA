@@ -1,5 +1,5 @@
 {
-  "name": "dental-matching-system",
+  "name": "dental-matchg-system",
   "version": "0.1.0",
   "description": "Sistema de matching entre pacientes y estudiantes de odontología",
   "main": "server.js",
@@ -23,7 +23,8 @@
     "google-spreadsheet": "^5.0.2",
     "googleapis": "^156.0.0",
     "mysql2": "^3.14.3",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "path-to-regexp": "^6.2.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

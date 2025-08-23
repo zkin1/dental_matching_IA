@@ -1,11 +1,13 @@
 const cron = require('node-cron');
 const syncService = require('../services/syncService');
+const matchingService = require('../services/matchingService');
 
 class SyncScheduler {
     constructor() {
         this.isRunning = false;
         this.syncJobs = new Map();
         this.lastSyncResult = null;
+        this.lastMatchingResult = null;
         this.syncStats = {
             totalRuns: 0,
             successfulRuns: 0,
@@ -13,14 +15,24 @@ class SyncScheduler {
             lastRun: null,
             nextRun: null
         };
+        this.matchingStats = {
+            totalRuns: 0,
+            successfulRuns: 0,
+            failedRuns: 0,
+            totalMatches: 0,
+            lastRun: null
+        };
     }
 
     // Iniciar todos los trabajos programados
     start() {
-        console.log('🚀 Iniciando sincronización automática...');
+        console.log('🚀 Iniciando sistema automático...');
         
-        // Sincronización cada 5 minutos (puedes ajustar según necesites)
+        // Sincronización de Google Sheets cada 5 minutos
         this.scheduleSync('main-sync', '*/5 * * * *', 'Sincronización principal cada 5 minutos');
+        
+        // NUEVO: Matching automático cada 5 minutos (offset de 2 minutos para evitar conflictos)
+        this.scheduleMatching('auto-matching', '2,7,12,17,22,27,32,37,42,47,52,57 * * * *', 'Matching automático cada 5 minutos');
         
         // Limpieza de datos cada hora
         this.scheduleCleanup('cleanup', '0 * * * *', 'Limpieza de datos cada hora');
@@ -32,7 +44,7 @@ class SyncScheduler {
         this.scheduleFullSync('full-sync', '0 2 * * *', 'Sincronización completa nocturna');
         
         this.isRunning = true;
-        console.log('✅ Sincronización automática iniciada');
+        console.log('✅ Sistema automático iniciado');
         console.log(`📊 ${this.syncJobs.size} trabajos programados`);
         
         // Log de trabajos programados
@@ -43,7 +55,7 @@ class SyncScheduler {
 
     // Detener todos los trabajos
     stop() {
-        console.log('⏹️ Deteniendo sincronización automática...');
+        console.log('⏹️ Deteniendo sistema automático...');
         
         this.syncJobs.forEach((job, name) => {
             job.task.stop();
@@ -52,7 +64,7 @@ class SyncScheduler {
         
         this.syncJobs.clear();
         this.isRunning = false;
-        console.log('✅ Sincronización automática detenida');
+        console.log('✅ Sistema automático detenido');
     }
 
     // Programar sincronización principal
@@ -63,7 +75,7 @@ class SyncScheduler {
                 const result = await syncService.syncPacientes();
                 
                 if (result.success) {
-                    console.log(`✅ Sincronización exitosa: ${result.processed} procesados, ${result.errors || 0} errores`);
+                    console.log(`✅ Sincronización exitosa: ${result.processed || result.created || 0} procesados`);
                 } else {
                     console.error(`❌ Error en sincronización: ${result.error}`);
                     throw new Error(result.error);
@@ -76,7 +88,33 @@ class SyncScheduler {
             timezone: "America/Santiago"
         });
 
-        this.syncJobs.set(name, { task, description, cronExpression });
+        this.syncJobs.set(name, { task, description, cronExpression, type: 'sync' });
+        console.log(`📅 Programado: ${description} (${cronExpression})`);
+    }
+
+    // NUEVO: Programar matching automático
+    scheduleMatching(name, cronExpression, description) {
+        const task = cron.schedule(cronExpression, async () => {
+            await this.executeMatchingJob(name, async () => {
+                console.log('🎯 Ejecutando matching automático...');
+                const result = await matchingService.executeAutoMatching();
+                
+                if (result.success) {
+                    this.matchingStats.totalMatches += result.matched || 0;
+                    console.log(`✅ Matching exitoso: ${result.matched}/${result.processed} pacientes asignados`);
+                } else {
+                    console.error(`❌ Error en matching: ${result.error}`);
+                    throw new Error(result.error);
+                }
+                
+                return result;
+            });
+        }, {
+            scheduled: true,
+            timezone: "America/Santiago"
+        });
+
+        this.syncJobs.set(name, { task, description, cronExpression, type: 'matching' });
         console.log(`📅 Programado: ${description} (${cronExpression})`);
     }
 
@@ -95,7 +133,7 @@ class SyncScheduler {
             timezone: "America/Santiago"
         });
 
-        this.syncJobs.set(name, { task, description, cronExpression });
+        this.syncJobs.set(name, { task, description, cronExpression, type: 'cleanup' });
         console.log(`📅 Programado: ${description} (${cronExpression})`);
     }
 
@@ -104,17 +142,18 @@ class SyncScheduler {
         const task = cron.schedule(cronExpression, async () => {
             await this.executeSyncJob(name, async () => {
                 console.log('📊 Actualizando estadísticas...');
-                const stats = await syncService.getStats();
+                const syncStats = await syncService.getStats();
+                const matchingStats = await matchingService.getMatchingStats();
                 
-                console.log(`✅ Estadísticas actualizadas - Pacientes: ${stats.pacientes.total}, Estudiantes: ${stats.estudiantes.total}`);
-                return stats;
+                console.log(`✅ Estadísticas actualizadas - Pacientes: ${syncStats.pacientes.total}, Matches: ${matchingStats.total_asignaciones}`);
+                return { sync: syncStats, matching: matchingStats };
             });
         }, {
             scheduled: true,
             timezone: "America/Santiago"
         });
 
-        this.syncJobs.set(name, { task, description, cronExpression });
+        this.syncJobs.set(name, { task, description, cronExpression, type: 'stats' });
         console.log(`📅 Programado: ${description} (${cronExpression})`);
     }
 
@@ -122,26 +161,32 @@ class SyncScheduler {
     scheduleFullSync(name, cronExpression, description) {
         const task = cron.schedule(cronExpression, async () => {
             await this.executeSyncJob(name, async () => {
-                console.log('🌙 Ejecutando sincronización completa nocturna...');
+                console.log('🌙 Ejecutando proceso completo nocturno...');
                 
-                // Primero sincronizar
+                // 1. Sincronizar pacientes
                 const syncResult = await syncService.syncPacientes();
                 
-                // Luego limpiar datos
+                // 2. Ejecutar matching
+                const matchingResult = await matchingService.executeAutoMatching();
+                
+                // 3. Limpiar datos
                 const cleanupResult = await syncService.cleanupData();
                 
-                // Finalmente obtener estadísticas
-                const stats = await syncService.getStats();
+                // 4. Obtener estadísticas
+                const syncStats = await syncService.getStats();
+                const matchingStats = await matchingService.getMatchingStats();
                 
-                console.log(`✅ Sincronización nocturna completada:`);
-                console.log(`   - Procesados: ${syncResult.processed}, Errores: ${syncResult.errors || 0}`);
+                console.log(`✅ Proceso nocturno completado:`);
+                console.log(`   - Sincronizados: ${syncResult.processed || 0}`);
+                console.log(`   - Matches: ${matchingResult.matched || 0}/${matchingResult.processed || 0}`);
                 console.log(`   - Limpiados: ${cleanupResult.deleted}, Actualizados: ${cleanupResult.updated}`);
-                console.log(`   - Total pacientes: ${stats.pacientes.total}, Estudiantes: ${stats.estudiantes.total}`);
+                console.log(`   - Total pacientes: ${syncStats.pacientes.total}, Asignaciones: ${matchingStats.total_asignaciones}`);
                 
                 return {
                     sync: syncResult,
+                    matching: matchingResult,
                     cleanup: cleanupResult,
-                    stats: stats
+                    stats: { sync: syncStats, matching: matchingStats }
                 };
             });
         }, {
@@ -149,11 +194,11 @@ class SyncScheduler {
             timezone: "America/Santiago"
         });
 
-        this.syncJobs.set(name, { task, description, cronExpression });
+        this.syncJobs.set(name, { task, description, cronExpression, type: 'full' });
         console.log(`📅 Programado: ${description} (${cronExpression})`);
     }
 
-    // Ejecutar trabajo con manejo de errores y estadísticas
+    // Ejecutar trabajo de sincronización con manejo de errores
     async executeSyncJob(jobName, jobFunction) {
         const startTime = Date.now();
         this.syncStats.totalRuns++;
@@ -171,8 +216,10 @@ class SyncScheduler {
                 result
             };
 
-            // Log exitoso más detallado solo para sincronización principal
-            if (jobName === 'main-sync') {
+            // Log más silencioso para trabajos rutinarios
+            if (jobName === 'main-sync' && (!result.processed && !result.created)) {
+                // No hacer log si no hubo cambios
+            } else if (jobName !== 'stats-update') {
                 console.log(`✅ ${jobName} completado en ${Date.now() - startTime}ms`);
             }
 
@@ -188,10 +235,47 @@ class SyncScheduler {
 
             console.error(`❌ Error en ${jobName}:`, error.message);
             
-            // Aquí podrías agregar notificaciones por email/Slack en caso de errores críticos
             if (jobName === 'main-sync') {
                 console.error('⚠️ Error en sincronización principal - revisar configuración');
             }
+        }
+    }
+
+    // NUEVO: Ejecutar trabajo de matching con manejo de errores
+    async executeMatchingJob(jobName, jobFunction) {
+        const startTime = Date.now();
+        this.matchingStats.totalRuns++;
+        this.matchingStats.lastRun = new Date().toISOString();
+
+        try {
+            const result = await jobFunction();
+            
+            this.matchingStats.successfulRuns++;
+            this.lastMatchingResult = {
+                success: true,
+                jobName,
+                timestamp: new Date().toISOString(),
+                duration: Date.now() - startTime,
+                result
+            };
+
+            // Log solo si hubo matches
+            if (result.matched > 0) {
+                console.log(`✅ ${jobName} completado: ${result.matched} matches en ${Date.now() - startTime}ms`);
+            }
+
+        } catch (error) {
+            this.matchingStats.failedRuns++;
+            this.lastMatchingResult = {
+                success: false,
+                jobName,
+                timestamp: new Date().toISOString(),
+                duration: Date.now() - startTime,
+                error: error.message
+            };
+
+            console.error(`❌ Error en ${jobName}:`, error.message);
+            console.error('⚠️ Error en matching automático - revisar algoritmo');
         }
     }
 
@@ -199,15 +283,26 @@ class SyncScheduler {
     async runManualSync() {
         console.log('🔄 Ejecutando sincronización manual...');
         
-        return await this.executeSyncJob('manual-sync', async () => {
-            const result = await syncService.syncPacientes();
-            
-            if (!result.success) {
-                throw new Error(result.error);
-            }
-            
-            return result;
-        });
+        const result = await syncService.syncPacientes();
+        
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+        
+        return result;
+    }
+
+    // NUEVO: Ejecutar matching manual
+    async runManualMatching() {
+        console.log('🎯 Ejecutando matching manual...');
+        
+        const result = await matchingService.executeAutoMatching();
+        
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+        
+        return result;
     }
 
     // Obtener estado del scheduler
@@ -216,11 +311,14 @@ class SyncScheduler {
             isRunning: this.isRunning,
             jobsCount: this.syncJobs.size,
             stats: this.syncStats,
-            lastResult: this.lastSyncResult,
+            matchingStats: this.matchingStats,
+            lastSyncResult: this.lastSyncResult,
+            lastMatchingResult: this.lastMatchingResult,
             jobs: Array.from(this.syncJobs.entries()).map(([name, job]) => ({
                 name,
                 description: job.description,
                 cronExpression: job.cronExpression,
+                type: job.type,
                 isRunning: job.task.running
             }))
         };
@@ -232,13 +330,22 @@ class SyncScheduler {
         const now = new Date();
         
         this.syncJobs.forEach((job, name) => {
-            // Esto es una aproximación, node-cron no expone directamente el próximo run
             let nextRun = new Date(now);
             
             // Aproximación basada en el patrón cron
             if (job.cronExpression === '*/5 * * * *') {
                 nextRun.setMinutes(Math.ceil(now.getMinutes() / 5) * 5);
                 nextRun.setSeconds(0);
+            } else if (job.cronExpression === '2,7,12,17,22,27,32,37,42,47,52,57 * * * *') {
+                const targetMinutes = [2,7,12,17,22,27,32,37,42,47,52,57];
+                const currentMinute = now.getMinutes();
+                const nextMinute = targetMinutes.find(min => min > currentMinute) || targetMinutes[0];
+                
+                nextRun.setMinutes(nextMinute);
+                nextRun.setSeconds(0);
+                if (nextMinute <= currentMinute) {
+                    nextRun.setHours(nextRun.getHours() + 1);
+                }
             } else if (job.cronExpression === '0 * * * *') {
                 nextRun.setHours(now.getHours() + 1);
                 nextRun.setMinutes(0);
@@ -255,11 +362,30 @@ class SyncScheduler {
             
             nextRuns.push({
                 job: name,
+                type: job.type,
                 nextRun: nextRun.toISOString()
             });
         });
         
         return nextRuns.sort((a, b) => new Date(a.nextRun) - new Date(b.nextRun));
+    }
+
+    // NUEVO: Obtener estadísticas consolidadas
+    async getFullStats() {
+        try {
+            const syncStats = await syncService.getStats();
+            const matchingStats = await matchingService.getMatchingStats();
+            
+            return {
+                sync: syncStats,
+                matching: matchingStats,
+                scheduler: this.getStatus(),
+                timestamp: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('❌ Error obteniendo estadísticas completas:', error);
+            throw error;
+        }
     }
 }
 

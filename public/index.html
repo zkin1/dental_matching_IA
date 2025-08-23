@@ -3,154 +3,458 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dental Matching System V0.2</title>
+    <title>Panel Admin - Dental Matching System</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🦷 Dental Matching System</h1>
-            <p>Versión 0.2 - Panel de Control con Google Sheets</p>
-            <nav class="nav-links">
-                <a href="sync.html">🔄 Sincronización</a>
-                <a href="#" onclick="refreshAllData()">🔃 Actualizar</a>
-            </nav>
-        </header>
-
-        <!-- Estado de Conexión Google Sheets -->
-        <div class="connection-status">
-            <div class="connection-card">
-                <div class="connection-indicator" id="sheets-status">
-                    <span class="connection-icon">🔍</span>
-                    <span class="connection-text">Verificando Google Sheets...</span>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fas fa-tooth"></i> Dental Admin</h2>
+            <button class="sidebar-toggle" id="sidebarToggle">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <ul>
+                <li class="nav-item active" id="nav-dashboard">
+                    <a href="#dashboard" class="nav-link" data-section="dashboard">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="nav-patients">
+                    <a href="#patients" class="nav-link" data-section="patients">
+                        <i class="fas fa-users"></i>
+                        <span>Pacientes</span>
+                        <span class="badge" id="pendingPatientsBadge">0</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="nav-students">
+                    <a href="#students" class="nav-link" data-section="students">
+                        <i class="fas fa-graduation-cap"></i>
+                        <span>Estudiantes</span>
+                        <span class="badge" id="availableStudentsBadge">0</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="nav-matching">
+                    <a href="#matching" class="nav-link" data-section="matching">
+                        <i class="fas fa-link"></i>
+                        <span>Matching</span>
+                        <span class="badge success" id="todayMatchesBadge">0</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="nav-assignments">
+                    <a href="#assignments" class="nav-link" data-section="assignments">
+                        <i class="fas fa-handshake"></i>
+                        <span>Asignaciones</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="nav-sync">
+                    <a href="#sync" class="nav-link" data-section="sync">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Sincronización</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="nav-analytics">
+                    <a href="#analytics" class="nav-link" data-section="analytics">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Analíticas</span>
+                    </a>
+                </li>
+                <li class="nav-item" id="nav-settings">
+                    <a href="#settings" class="nav-link" data-section="settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Sistema</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="system-status" id="systemStatus">
+                <div class="status-indicator" id="statusIndicator">
+                    <i class="fas fa-circle"></i>
+                    <span>Verificando...</span>
                 </div>
-                <div class="connection-details">
-                    <span id="last-sync">Última sincronización: Nunca</span>
+                <small id="lastUpdate">Última actualización: --</small>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <button class="mobile-sidebar-toggle" id="mobileSidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 id="pageTitle">Dashboard General</h1>
+            </div>
+            
+            <div class="header-right">
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="quickSync" title="Sincronización rápida">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="btn btn-success" id="quickMatch" title="Matching automático">
+                        <i class="fas fa-magic"></i>
+                    </button>
+                    <button class="btn btn-info" id="refreshData" title="Actualizar datos">
+                        <i class="fas fa-refresh"></i>
+                    </button>
                 </div>
-            </div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>Pacientes</h3>
-                <div id="total-pacientes" class="stat-number">-</div>
-                <div class="stat-change" id="pacientes-change">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Estudiantes</h3>
-                <div id="total-estudiantes" class="stat-number">-</div>
-                <div class="stat-change" id="estudiantes-change">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Asignaciones</h3>
-                <div id="total-asignaciones" class="stat-number">-</div>
-                <div class="stat-change" id="asignaciones-change">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Sincronizaciones</h3>
-                <div id="total-syncs" class="stat-number">-</div>
-                <div class="stat-change" id="syncs-change">Nuevos hoy</div>
-            </div>
-        </div>
-
-        <div class="tabs">
-            <button class="tab-button active" onclick="showTab('pacientes', this)">📋 Pacientes</button>
-            <button class="tab-button" onclick="showTab('estudiantes', this)">🎓 Estudiantes</button>
-            <button class="tab-button" onclick="showTab('asignaciones', this)">🔗 Asignaciones</button>
-            <button class="tab-button" onclick="showTab('sync-log', this)">📊 Log Sync</button>
-        </div>
-
-        <div class="tab-content">
-            <!-- Tabla de Pacientes -->
-            <div id="pacientes" class="tab-pane active">
-                <div class="tab-header">
-                    <h2>Lista de Pacientes</h2>
-                    <div class="tab-controls">
-                        <button onclick="loadPacientes()" class="btn-refresh">🔄 Actualizar</button>
-                        <select id="pacientes-filter" onchange="filterPacientes()">
-                            <option value="">Todos</option>
-                            <option value="alta">Prioridad Alta</option>
-                            <option value="moderada">Prioridad Moderada</option>
-                            <option value="baja">Prioridad Baja</option>
-                        </select>
+                
+                <div class="scheduler-status" id="schedulerStatus">
+                    <div class="scheduler-indicator">
+                        <i class="fas fa-robot"></i>
+                        <span>Sistema Manual</span>
                     </div>
                 </div>
-                <div id="loading-pacientes" class="loading">Cargando...</div>
-                <div class="table-info" id="pacientes-info" style="display: none;">
-                    <span>📊 Mostrando <strong id="pacientes-showing">0</strong> de <strong id="pacientes-total">0</strong> pacientes</span>
+            </div>
+        </header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="content-section active">
+            <!-- Loading State for Dashboard -->
+            <div id="dashboard-loading" class="loading-state" style="display: none;">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Cargando dashboard...</span>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-card patients">
+                    <div class="kpi-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-value" id="totalPatients">0</div>
+                        <div class="kpi-label">Total Pacientes</div>
+                        <div class="kpi-change" id="patientsChange">+0 hoy</div>
+                    </div>
                 </div>
-                <table id="tabla-pacientes" class="data-table" style="display: none;">
+                
+                <div class="kpi-card students">
+                    <div class="kpi-icon">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-value" id="totalStudents">0</div>
+                        <div class="kpi-label">Estudiantes Activos</div>
+                        <div class="kpi-change" id="studentsAvailable">0 disponibles</div>
+                    </div>
+                </div>
+                
+                <div class="kpi-card matches">
+                    <div class="kpi-icon">
+                        <i class="fas fa-handshake"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-value" id="totalMatches">0</div>
+                        <div class="kpi-label">Asignaciones Totales</div>
+                        <div class="kpi-change" id="matchesToday">0 hoy</div>
+                    </div>
+                </div>
+                
+                <div class="kpi-card success-rate">
+                    <div class="kpi-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-value" id="successRate">0%</div>
+                        <div class="kpi-label">Tasa de Éxito</div>
+                        <div class="kpi-change" id="avgScore">Score prom: 0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <h3>Acciones Rápidas</h3>
+                <div class="actions-grid">
+                    <button class="action-btn" id="runMatching">
+                        <i class="fas fa-magic"></i>
+                        <span>Ejecutar Matching</span>
+                    </button>
+                    <button class="action-btn" id="syncNow">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Sincronizar Datos</span>
+                    </button>
+                    <button class="action-btn" id="viewPending">
+                        <i class="fas fa-clock"></i>
+                        <span>Pacientes Pendientes</span>
+                    </button>
+                    <button class="action-btn" id="systemHealth">
+                        <i class="fas fa-heartbeat"></i>
+                        <span>Estado del Sistema</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="dashboard-grid">
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3>Actividad Reciente</h3>
+                        <button class="btn btn-sm" id="refreshActivity">
+                            <i class="fas fa-refresh"></i>
+                        </button>
+                    </div>
+                    <div class="card-content">
+                        <div id="activityFeed" class="activity-feed">
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-info-circle"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <span class="activity-text">Sistema iniciado</span>
+                                    <span class="activity-time">Ahora</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3>Estado de Servicios</h3>
+                    </div>
+                    <div class="card-content">
+                        <div class="services-status">
+                            <div class="service-item">
+                                <div class="service-icon">
+                                    <i class="fas fa-database"></i>
+                                </div>
+                                <div class="service-info">
+                                    <span class="service-name">Base de Datos</span>
+                                    <span class="service-status" id="dbStatus">Verificando...</span>
+                                </div>
+                            </div>
+                            
+                            <div class="service-item">
+                                <div class="service-icon">
+                                    <i class="fab fa-google"></i>
+                                </div>
+                                <div class="service-info">
+                                    <span class="service-name">Google Sheets</span>
+                                    <span class="service-status" id="sheetsStatus">Verificando...</span>
+                                </div>
+                            </div>
+                            
+                            <div class="service-item">
+                                <div class="service-icon">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="service-info">
+                                    <span class="service-name">Sistema Automático</span>
+                                    <span class="service-status" id="autoStatus">Verificando...</span>
+                                </div>
+                            </div>
+                            
+                            <div class="service-item">
+                                <div class="service-icon">
+                                    <i class="fas fa-link"></i>
+                                </div>
+                                <div class="service-info">
+                                    <span class="service-name">Algoritmo Matching</span>
+                                    <span class="service-status" id="matchingStatus">Verificando...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Patients Section -->
+        <section id="patients" class="content-section">
+            <div class="section-header">
+                <h2>Gestión de Pacientes</h2>
+                <div class="section-actions">
+                    <select id="patientsFilter" class="filter-select">
+                        <option value="">Todos</option>
+                        <option value="pendiente">Pendientes</option>
+                        <option value="asignado">Asignados</option>
+                        <option value="completado">Completados</option>
+                    </select>
+                    <select id="priorityFilter" class="filter-select">
+                        <option value="">Todas las prioridades</option>
+                        <option value="Muy Alta">Muy Alta</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Moderada">Moderada</option>
+                        <option value="Baja">Baja</option>
+                    </select>
+                    <button class="btn btn-primary" id="refreshPatients">
+                        <i class="fas fa-refresh"></i> Actualizar
+                    </button>
+                </div>
+            </div>
+            
+            <div class="data-table-container">
+                <div id="patientsLoading" class="loading-state" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Cargando pacientes...</span>
+                </div>
+                
+                <table id="patientsTable" class="data-table">
                     <thead>
                         <tr>
                             <th>ID</th>
                             <th>Nombre</th>
                             <th>Edad</th>
                             <th>Teléfono</th>
-                            <th>Ciudad</th>
                             <th>Tratamiento</th>
                             <th>Dolor</th>
                             <th>Prioridad</th>
-                            <th>Registro</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="tbody-pacientes"></tbody>
+                    <tbody id="patientsTableBody">
+                    </tbody>
                 </table>
             </div>
+        </section>
 
-            <!-- Tabla de Estudiantes -->
-            <div id="estudiantes" class="tab-pane">
-                <div class="tab-header">
-                    <h2>Lista de Estudiantes</h2>
-                    <div class="tab-controls">
-                        <button onclick="loadEstudiantes()" class="btn-refresh">🔄 Actualizar</button>
-                        <select id="estudiantes-filter" onchange="filterEstudiantes()">
-                            <option value="">Todos</option>
-                            <option value="activo">Activos</option>
-                            <option value="completo">Completados</option>
-                            <option value="disponible">Disponibles</option>
-                        </select>
-                    </div>
+        <!-- Students Section -->
+        <section id="students" class="content-section">
+            <div class="section-header">
+                <h2>Gestión de Estudiantes</h2>
+                <div class="section-actions">
+                    <select id="studentsFilter" class="filter-select">
+                        <option value="">Todos</option>
+                        <option value="activo">Activos</option>
+                        <option value="disponible">Disponibles</option>
+                        <option value="completo">Completados</option>
+                    </select>
+                    <button class="btn btn-primary" id="refreshStudents">
+                        <i class="fas fa-refresh"></i> Actualizar
+                    </button>
                 </div>
-                <div id="loading-estudiantes" class="loading">Cargando...</div>
-                <div class="table-info" id="estudiantes-info" style="display: none;">
-                    <span>📊 Mostrando <strong id="estudiantes-showing">0</strong> de <strong id="estudiantes-total">0</strong> estudiantes</span>
+            </div>
+            
+            <div class="data-table-container">
+                <div id="studentsLoading" class="loading-state" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Cargando estudiantes...</span>
                 </div>
-                <table id="tabla-estudiantes" class="data-table" style="display: none;">
+                
+                <table id="studentsTable" class="data-table">
                     <thead>
                         <tr>
                             <th>Código</th>
                             <th>Nombre</th>
                             <th>Año</th>
                             <th>Universidad</th>
-                            <th>Ciudad</th>
+                            <th>Especialidades</th>
                             <th>Casos Activos</th>
                             <th>Completados</th>
                             <th>Estado</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="tbody-estudiantes"></tbody>
+                    <tbody id="studentsTableBody">
+                    </tbody>
                 </table>
             </div>
+        </section>
 
-            <!-- Tabla de Asignaciones -->
-            <div id="asignaciones" class="tab-pane">
-                <div class="tab-header">
-                    <h2>Lista de Asignaciones</h2>
-                    <div class="tab-controls">
-                        <button onclick="loadAsignaciones()" class="btn-refresh">🔄 Actualizar</button>
-                        <select id="asignaciones-filter" onchange="filterAsignaciones()">
-                            <option value="">Todas</option>
-                            <option value="activo">Activas</option>
-                            <option value="completado">Completadas</option>
-                            <option value="cancelado">Canceladas</option>
-                        </select>
+        <!-- Matching Section -->
+        <section id="matching" class="content-section">
+            <div class="section-header">
+                <h2>Sistema de Matching</h2>
+                <div class="section-actions">
+                    <button class="btn btn-success" id="executeMatching">
+                        <i class="fas fa-magic"></i> Ejecutar Matching
+                    </button>
+                    <button class="btn btn-info" id="viewSuggestions">
+                        <i class="fas fa-lightbulb"></i> Ver Sugerencias
+                    </button>
+                </div>
+            </div>
+            
+            <div class="matching-overview">
+                <div class="matching-stats">
+                    <div class="stat-item">
+                        <span class="stat-value" id="pendingPatientsCount">0</span>
+                        <span class="stat-label">Pacientes Pendientes</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="availableStudentsCount">0</span>
+                        <span class="stat-label">Estudiantes Disponibles</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="todayMatchesCount">0</span>
+                        <span class="stat-label">Matches Hoy</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="algorithmScore">v2.0</span>
+                        <span class="stat-label">Algoritmo</span>
                     </div>
                 </div>
-                <div id="loading-asignaciones" class="loading">Cargando...</div>
-                <div class="table-info" id="asignaciones-info" style="display: none;">
-                    <span>📊 Mostrando <strong id="asignaciones-showing">0</strong> de <strong id="asignaciones-total">0</strong> asignaciones</span>
+                
+                <div class="matching-actions">
+                    <button class="action-card" id="viewPendingPatients">
+                        <i class="fas fa-clock"></i>
+                        <h4>Pacientes Pendientes</h4>
+                        <p>Ver lista de pacientes esperando asignación</p>
+                    </button>
+                    
+                    <button class="action-card" id="viewAvailableStudents">
+                        <i class="fas fa-user-graduate"></i>
+                        <h4>Estudiantes Disponibles</h4>
+                        <p>Ver estudiantes con capacidad disponible</p>
+                    </button>
+                    
+                    <button class="action-card" id="manualMatching">
+                        <i class="fas fa-hand-point-right"></i>
+                        <h4>Matching Manual</h4>
+                        <p>Crear asignaciones manualmente</p>
+                    </button>
                 </div>
-                <table id="tabla-asignaciones" class="data-table" style="display: none;">
+
+                <!-- Pending Patients List -->
+                <div id="pendingPatientsList" class="pending-patients">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <div class="matching-results" id="matchingResults" style="display: none;">
+                <h3>Resultados del Matching</h3>
+                <div id="matchingResultsContent"></div>
+            </div>
+        </section>
+
+        <!-- Assignments Section -->
+        <section id="assignments" class="content-section">
+            <div class="section-header">
+                <h2>Asignaciones Activas</h2>
+                <div class="section-actions">
+                    <select id="assignmentsFilter" class="filter-select">
+                        <option value="">Todas</option>
+                        <option value="asignado">Asignadas</option>
+                        <option value="en_tratamiento">En Tratamiento</option>
+                        <option value="completado">Completadas</option>
+                        <option value="cancelado">Canceladas</option>
+                    </select>
+                    <button class="btn btn-primary" id="refreshAssignments">
+                        <i class="fas fa-refresh"></i> Actualizar
+                    </button>
+                </div>
+            </div>
+            
+            <div class="data-table-container">
+                <div id="assignmentsLoading" class="loading-state" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Cargando asignaciones...</span>
+                </div>
+                
+                <table id="assignmentsTable" class="data-table">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -160,70 +464,338 @@
                             <th>Score</th>
                             <th>Estado</th>
                             <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="tbody-asignaciones"></tbody>
+                    <tbody id="assignmentsTableBody">
+                    </tbody>
                 </table>
             </div>
+        </section>
 
-            <!-- Log de Sincronización -->
-            <div id="sync-log" class="tab-pane">
-                <div class="tab-header">
-                    <h2>Log de Sincronización</h2>
-                    <div class="tab-controls">
-                        <button onclick="refreshSyncLog()" class="btn-refresh">🔄 Actualizar</button>
-                        <button onclick="clearSyncLog()" class="btn-clear">🗑️ Limpiar</button>
-                    </div>
+        <!-- Sync Section -->
+        <section id="sync" class="content-section">
+            <div class="section-header">
+                <h2>Sincronización con Google Sheets</h2>
+                <div class="section-actions">
+                    <button class="btn btn-success" id="executeSync">
+                        <i class="fas fa-sync-alt"></i> Sincronizar Ahora
+                    </button>
+                    <button class="btn btn-info" id="testConnection">
+                        <i class="fas fa-plug"></i> Probar Conexión
+                    </button>
                 </div>
+            </div>
+            
+            <div class="sync-overview">
                 <div class="sync-stats">
-                    <div class="sync-stat-item">
-                        <span class="sync-stat-label">Última Sync:</span>
-                        <span id="last-sync-time" class="sync-stat-value">-</span>
+                    <div class="sync-stat">
+                        <i class="fas fa-clock"></i>
+                        <div class="stat-content">
+                            <span class="stat-label">Última Sincronización</span>
+                            <span class="stat-value" id="lastSyncTime">Nunca</span>
+                        </div>
                     </div>
-                    <div class="sync-stat-item">
-                        <span class="sync-stat-label">Total Procesados:</span>
-                        <span id="total-processed" class="sync-stat-value">-</span>
+                    
+                    <div class="sync-stat">
+                        <i class="fas fa-plus"></i>
+                        <div class="stat-content">
+                            <span class="stat-label">Pacientes Procesados</span>
+                            <span class="stat-value" id="processedCount">0</span>
+                        </div>
                     </div>
-                    <div class="sync-stat-item">
-                        <span class="sync-stat-label">Nuevos:</span>
-                        <span id="new-patients" class="sync-stat-value">-</span>
+                    
+                    <div class="sync-stat">
+                        <i class="fas fa-check"></i>
+                        <div class="stat-content">
+                            <span class="stat-label">Tasa de Éxito</span>
+                            <span class="stat-value" id="syncSuccessRate">100%</span>
+                        </div>
                     </div>
-                    <div class="sync-stat-item">
-                        <span class="sync-stat-label">Actualizados:</span>
-                        <span id="updated-patients" class="sync-stat-value">-</span>
+                    
+                    <div class="sync-stat">
+                        <i class="fas fa-robot"></i>
+                        <div class="stat-content">
+                            <span class="stat-label">Sistema Automático</span>
+                            <span class="stat-value" id="autoSyncStatus">Manual</span>
+                        </div>
                     </div>
                 </div>
-                <div id="sync-log-content" class="log-content">
-                    <div class="log-entry log-info">
-                        <span class="log-time">[Sistema]</span>
-                        <span class="log-message">Dashboard iniciado - Verificando conexiones...</span>
+                
+                <div class="sync-controls">
+                    <div class="control-group">
+                        <h4>Control del Sistema Automático</h4>
+                        <div class="control-buttons">
+                            <button class="btn btn-success" id="startScheduler">
+                                <i class="fas fa-play"></i> Iniciar Automático
+                            </button>
+                            <button class="btn btn-warning" id="stopScheduler">
+                                <i class="fas fa-pause"></i> Pausar Automático
+                            </button>
+                            <button class="btn btn-info" id="restartScheduler">
+                                <i class="fas fa-redo"></i> Reiniciar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="sync-progress" id="syncProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="syncProgressFill"></div>
+                    </div>
+                    <div class="progress-text" id="syncProgressText">Procesando...</div>
+                </div>
+
+                <!-- Scheduled Jobs List -->
+                <div class="jobs-list">
+                    <h4>Trabajos Programados</h4>
+                    <div id="scheduledJobsList">
+                        <!-- Will be populated by JavaScript -->
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div class="api-status">
-            <h3>Estado del Sistema</h3>
-            <div class="status-grid">
-                <div class="status-item">
-                    <span class="status-label">API Backend:</span>
-                    <div id="api-status" class="status-indicator">Verificando...</div>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Base de Datos:</span>
-                    <div id="db-status" class="status-indicator">Verificando...</div>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Google Sheets:</span>
-                    <div id="google-sheets-status" class="status-indicator">Verificando...</div>
+        <!-- Analytics Section -->
+        <section id="analytics" class="content-section">
+            <div class="section-header">
+                <h2>Analíticas y Reportes</h2>
+                <div class="section-actions">
+                    <select id="analyticsTimeframe" class="filter-select">
+                        <option value="7">Últimos 7 días</option>
+                        <option value="30" selected>Últimos 30 días</option>
+                        <option value="90">Últimos 90 días</option>
+                    </select>
+                    <button class="btn btn-primary" id="refreshAnalytics">
+                        <i class="fas fa-refresh"></i> Actualizar
+                    </button>
                 </div>
             </div>
-        </div>
+            
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <h3>Tratamientos más Solicitados</h3>
+                    <div id="treatmentChart" class="chart-container">
+                        <div class="chart-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Cargando datos...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3>Rendimiento del Matching</h3>
+                    <div id="matchingChart" class="chart-container">
+                        <div class="chart-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Cargando datos...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3>Estudiantes Top</h3>
+                    <div id="topStudentsChart" class="chart-container">
+                        <div class="chart-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Cargando datos...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3>Estadísticas Generales</h3>
+                    <div class="stats-summary">
+                        <div class="summary-item">
+                            <span class="summary-label">Promedio Score Matching:</span>
+                            <span class="summary-value" id="avgMatchingScore">--</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Tiempo Promedio Asignación:</span>
+                            <span class="summary-value" id="avgAssignmentTime">--</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Casos Completados este Mes:</span>
+                            <span class="summary-value" id="monthlyCompletions">--</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Uptime del Sistema:</span>
+                            <span class="summary-value" id="systemUptime">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-        <!-- Toast Notifications -->
-        <div id="toast-container" class="toast-container"></div>
+        <!-- Settings Section -->
+        <section id="settings" class="content-section">
+            <div class="section-header">
+                <h2>Configuración del Sistema</h2>
+            </div>
+            
+            <div class="settings-grid">
+                <div class="settings-card">
+                    <h3>Estado del Sistema</h3>
+                    <div class="system-health">
+                        <div class="health-item">
+                            <i class="fas fa-server"></i>
+                            <span>Servidor API</span>
+                            <span class="health-status" id="apiHealth">Verificando...</span>
+                        </div>
+                        <div class="health-item">
+                            <i class="fas fa-database"></i>
+                            <span>Base de Datos</span>
+                            <span class="health-status" id="databaseHealth">Verificando...</span>
+                        </div>
+                        <div class="health-item">
+                            <i class="fab fa-google"></i>
+                            <span>Google Sheets</span>
+                            <span class="health-status" id="googleSheetsHealth">Verificando...</span>
+                        </div>
+                        <div class="health-item">
+                            <i class="fas fa-robot"></i>
+                            <span>Scheduler</span>
+                            <span class="health-status" id="schedulerHealth">Verificando...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-card">
+                    <h3>Información del Sistema</h3>
+                    <div class="system-info">
+                        <div class="info-item">
+                            <span class="info-label">Versión:</span>
+                            <span class="info-value" id="systemVersion">v0.2.0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Uptime:</span>
+                            <span class="info-value" id="uptimeDisplay">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Uso de Memoria:</span>
+                            <span class="info-value" id="memoryUsage">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Última Actualización:</span>
+                            <span class="info-value" id="lastSystemUpdate">--</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-card">
+                    <h3>Configuración de Matching</h3>
+                    <div class="matching-config">
+                        <div class="config-item">
+                            <label>Algoritmo Actual:</label>
+                            <span class="config-value">v2.0 - Especialidad + Experiencia</span>
+                        </div>
+                        <div class="config-item">
+                            <label>Score Mínimo:</label>
+                            <span class="config-value">20%</span>
+                        </div>
+                        <div class="config-item">
+                            <label>Matching Automático:</label>
+                            <span class="config-value" id="autoMatchingConfig">Cada 5 minutos</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-card">
+                    <h3>Acciones de Sistema</h3>
+                    <div class="system-actions">
+                        <button class="btn btn-info" id="exportData">
+                            <i class="fas fa-download"></i>
+                            Exportar Datos
+                        </button>
+                        <button class="btn btn-warning" id="cleanupData">
+                            <i class="fas fa-broom"></i>
+                            Limpiar Datos
+                        </button>
+                        <button class="btn btn-primary" id="backupSystem">
+                            <i class="fas fa-save"></i>
+                            Backup Sistema
+                        </button>
+                        <button class="btn btn-secondary" id="viewLogs">
+                            <i class="fas fa-list"></i>
+                            Ver Logs
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h3 id="loadingTitle">Procesando...</h3>
+            <p id="loadingMessage">Por favor espere mientras se procesa la operación.</p>
+        </div>
     </div>
 
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Modal Dialogs -->
+    <div id="modalOverlay" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="modalTitle">Título</h3>
+                <button class="modal-close" id="modalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <p>Contenido del modal...</p>
+            </div>
+            <div class="modal-footer" id="modalFooter">
+                <button class="btn btn-secondary" id="modalCancel">Cancelar</button>
+                <button class="btn btn-primary" id="modalConfirm">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Patient Details Modal -->
+    <div id="patientModal" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3>Detalles del Paciente</h3>
+                <button class="modal-close" onclick="closePatientModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="patientModalBody">
+                <!-- Patient details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closePatientModal()">Cerrar</button>
+                <button class="btn btn-success" id="assignPatientBtn">Asignar Estudiante</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Details Modal -->
+    <div id="studentModal" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3>Detalles del Estudiante</h3>
+                <button class="modal-close" onclick="closeStudentModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="studentModalBody">
+                <!-- Student details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeStudentModal()">Cerrar</button>
+                <button class="btn btn-info" id="viewStudentPatientsBtn">Ver Pacientes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
     <script src="script.js"></script>
 </body>
 </html>
