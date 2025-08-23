@@ -24,6 +24,7 @@
     "googleapis": "^156.0.0",
     "mysql2": "^3.14.3",
     "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.1",
     "path-to-regexp": "^6.2.1"
   },
   "devDependencies": {

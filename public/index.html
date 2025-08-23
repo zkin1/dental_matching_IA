@@ -193,6 +193,48 @@
                         <span>Estado del Sistema</span>
                     </button>
                 </div>
+                
+                <!-- Gestión de Códigos de Estudiante -->
+                <div class="code-management-section">
+                    <h4>Gestión de Códigos</h4>
+                    <div class="code-actions">
+                        <button class="action-btn btn-warning" id="validateFixCodes">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Validar Códigos</span>
+                        </button>
+                        <button class="action-btn btn-info" id="getCodeStats">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>Estadísticas</span>
+                        </button>
+                        <button class="action-btn btn-secondary" id="generateTestCode">
+                            <i class="fas fa-key"></i>
+                            <span>Generar Código</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Notificaciones Automáticas -->
+                <div class="auto-notifications-section">
+                    <h4>Notificaciones Automáticas</h4>
+                    <div class="notification-actions">
+                        <button class="action-btn btn-success" id="viewNotificationLogs">
+                            <i class="fas fa-envelope-open"></i>
+                            <span>Ver Logs</span>
+                        </button>
+                        <button class="action-btn btn-info" id="getNotificationStats">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Estadísticas</span>
+                        </button>
+                        <button class="action-btn btn-warning" id="clearOldLogs">
+                            <i class="fas fa-broom"></i>
+                            <span>Limpiar Logs</span>
+                        </button>
+                        <button class="action-btn btn-secondary" id="testNotification">
+                            <i class="fas fa-paper-plane"></i>
+                            <span>Prueba</span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Activity Feed -->
@@ -791,6 +833,21 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeStudentModal()">Cerrar</button>
                 <button class="btn btn-info" id="viewStudentPatientsBtn">Ver Pacientes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <h3>Contactar Estudiante</h3>
+                <button class="modal-close" onclick="closeContactModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="contactModalBody">
+                <!-- Contact details will be loaded here -->
             </div>
         </div>
     </div>

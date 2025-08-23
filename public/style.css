@@ -710,6 +710,11 @@ body {
 .data-table {
     width: 100%;
     border-collapse: collapse;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    margin-top: 1rem;
 }
 
 .data-table th,
@@ -720,15 +725,15 @@ body {
 }
 
 .data-table th {
-    background: linear-gradient(135deg, #f8fafc 0%, var(--bg-primary) 100%);
-    font-weight: 600;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
     color: var(--text-primary);
+    font-weight: 600;
+    text-align: left;
+    padding: 1rem;
+    border-bottom: 2px solid var(--border-light);
+    font-size: 0.875rem;
     text-transform: uppercase;
-    font-size: 0.8rem;
-    letter-spacing: 0.5px;
-    position: sticky;
-    top: 0;
-    z-index: 10;
+    letter-spacing: 0.05em;
 }
 
 .data-table tbody tr {
@@ -736,70 +741,232 @@ body {
 }
 
 .data-table tbody tr:hover {
-    background-color: var(--bg-primary);
+    background-color: #f8fafc;
+    transition: background-color var(--transition-fast);
 }
 
 .data-table td {
-    vertical-align: middle;
+    vertical-align: top;
     color: var(--text-primary);
 }
 
 /* Status Badges */
 .status-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 9999px;
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-sm);
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.025em;
+    letter-spacing: 0.05em;
+    text-align: center;
+    min-width: 80px;
 }
 
-.status-badge.pendiente {
+.status-pendiente {
     background-color: #fef3c7;
     color: #92400e;
+    border: 1px solid #f59e0b;
 }
 
-.status-badge.asignado {
+.status-asignado {
     background-color: #dbeafe;
     color: #1e40af;
+    border: 1px solid #3b82f6;
 }
 
-.status-badge.completado {
-    background-color: #d1fae5;
-    color: #065f46;
-}
-
-.status-badge.cancelado {
-    background-color: #fecaca;
-    color: #991b1b;
-}
-
-.priority-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.priority-badge.muy-alta {
-    background-color: #fecaca;
-    color: #991b1b;
-}
-
-.priority-badge.alta {
-    background-color: #fed7aa;
-    color: #c2410c;
-}
-
-.priority-badge.moderada {
+.status-en_tratamiento {
     background-color: #fef3c7;
     color: #92400e;
+    border: 1px solid #f59e0b;
 }
 
-.priority-badge.baja {
+.status-completado {
     background-color: #d1fae5;
     color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.status-cancelado {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+.status-activo {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.status-inactive {
+    background-color: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+}
+
+.status-completed {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+/* Badges de prioridad */
+.priority-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    min-width: 80px;
+}
+
+.priority-muy-alta {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+.priority-alta {
+    background-color: #fed7aa;
+    color: #c2410c;
+    border: 1px solid #ea580c;
+}
+
+.priority-moderada {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.priority-baja {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+/* Badges de especialidades */
+.specialty-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background-color: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #6366f1;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
+    cursor: help;
+}
+
+.specialty-badge:hover {
+    background-color: #c7d2fe;
+    border-color: #4f46e5;
+}
+
+/* Tooltip para especialidades largas */
+.specialty-badge[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1e293b;
+    color: white;
+    padding: 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 0.5rem;
+    box-shadow: var(--shadow-lg);
+}
+
+.specialty-badge[title]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1e293b;
+    margin-bottom: -0.5rem;
+    z-index: 1000;
+}
+
+/* Badges de score */
+.score-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    min-width: 60px;
+}
+
+.score-excellent {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+}
+
+.score-good {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #3b82f6;
+}
+
+.score-fair {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.score-poor {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+.score-na {
+    background-color: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+}
+
+/* Badges de tratamiento */
+.treatment-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background-color: #f0f9ff;
+    color: #0c4a6e;
+    border: 1px solid #0ea5e9;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Badges de tipo de asignación */
+.badge.manual {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.badge.auto {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #3b82f6;
 }
 
 /* Loading States */
@@ -1561,4 +1728,387 @@ td:contains('-')::after {
     content: 'N/A';
     color: #9ca3af;
     font-style: italic;
+}
+
+/* ========================================
+   MEJORAS EN TABLAS
+   ======================================== */
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    margin-top: 1rem;
+}
+
+.data-table th {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: left;
+    padding: 1rem;
+    border-bottom: 2px solid var(--border-light);
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.data-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: top;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f8fafc;
+    transition: background-color var(--transition-fast);
+}
+
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Mejoras en las celdas de información */
+.data-table td strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.data-table td small {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+/* ========================================
+   MEJORAS EN FILTROS
+   ======================================== */
+
+.filter-select {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    min-width: 150px;
+    transition: all var(--transition-fast);
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.filter-select:hover {
+    border-color: var(--primary-color);
+}
+
+/* ========================================
+   MEJORAS EN BOTONES
+   ======================================== */
+
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    border-radius: var(--radius-sm);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: var(--text-white);
+    border: 1px solid var(--secondary-color);
+}
+
+.btn-secondary:hover {
+    background-color: #475569;
+    border-color: #475569;
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    color: var(--text-white);
+    border: 1px solid var(--success-color);
+}
+
+.btn-success:hover {
+    background-color: #047857;
+    border-color: #047857;
+}
+
+/* ========================================
+   MODAL DE CONTACTO
+   ======================================== */
+
+.contact-details {
+    padding: 20px 0;
+}
+
+.contact-details h4 {
+    color: #1f2937;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.student-info {
+    background-color: #f3f4f6;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #3b82f6;
+}
+
+.student-info p {
+    margin: 8px 0;
+    color: #374151;
+}
+
+.student-info strong {
+    color: #1f2937;
+}
+
+.patients-list {
+    margin: 20px 0;
+}
+
+.patients-list h5 {
+    color: #1f2937;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+.patients-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.patients-list li {
+    background-color: #f9fafb;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    border: 1px solid #e5e7eb;
+}
+
+.patients-list li strong {
+    color: #1f2937;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.patients-list li small {
+    color: #6b7280;
+    font-size: 0.85rem;
+}
+
+.contact-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.contact-actions .btn {
+    min-width: 120px;
+}
+
+/* Responsive para el modal de contacto */
+@media (max-width: 768px) {
+    .contact-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .contact-actions .btn {
+        width: 100%;
+        min-width: auto;
+    }
+    
+    .student-info {
+        padding: 15px;
+    }
+    
+    .patients-list li {
+        padding: 12px;
+    }
+}
+
+/* ========================================
+   GESTIÓN DE CÓDIGOS DE ESTUDIANTE
+   ======================================== */
+
+.code-management-section {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.code-management-section h4 {
+    margin: 0 0 15px 0;
+    color: #495057;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.code-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.code-actions .action-btn {
+    font-size: 12px;
+    padding: 8px 12px;
+}
+
+.btn-warning {
+    background-color: #ffc107;
+    color: #212529;
+    border-color: #ffc107;
+}
+
+.btn-warning:hover {
+    background-color: #e0a800;
+    border-color: #d39e00;
+}
+
+.btn-info {
+    background-color: #17a2b8;
+    color: white;
+    border-color: #17a2b8;
+}
+
+.btn-info:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    border-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+}
+
+/* Estilos para botones de regenerar código */
+.codigo-estudiante {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.codigo-estudiante .btn-outline-warning {
+    padding: 2px 6px;
+    font-size: 10px;
+    border-width: 1px;
+}
+
+.codigo-estudiante .btn-outline-warning:hover {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+/* Responsive para gestión de códigos */
+@media (max-width: 768px) {
+    .code-actions {
+        grid-template-columns: 1fr;
+    }
+    
+    .code-management-section {
+        padding: 12px;
+    }
+}
+
+/* ========================================
+   NOTIFICACIONES AUTOMÁTICAS
+   ======================================== */
+
+.auto-notifications-section {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f0f8ff;
+    border-radius: 8px;
+    border: 1px solid #b3d9ff;
+}
+
+.auto-notifications-section h4 {
+    margin: 0 0 15px 0;
+    color: #1e40af;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.notification-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.notification-actions .action-btn {
+    font-size: 12px;
+    padding: 8px 12px;
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+}
+
+/* Estilos para indicadores de notificación en asignaciones */
+.notification-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.notification-status.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.notification-status.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.notification-status.pending {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+/* Responsive para notificaciones automáticas */
+@media (max-width: 768px) {
+    .notification-actions {
+        grid-template-columns: 1fr;
+    }
+    
+    .auto-notifications-section {
+        padding: 12px;
+    }
 }

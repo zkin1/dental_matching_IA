@@ -9,11 +9,15 @@ const estudiantesRoutes = require('./routes/estudiantes');
 const asignacionesRoutes = require('./routes/asignaciones');
 const syncRoutes = require('./routes/sync');
 const matchingRoutes = require('./routes/matching');
+const contactRoutes = require('./routes/contact');
+const studentCodeRoutes = require('./routes/studentCodes');
+const autoNotificationRoutes = require('./routes/autoNotifications');
 
 // Importar servicios
 const syncScheduler = require('./schedulers/syncScheduler');
 const matchingService = require('./services/matchingService');
 const syncService = require('./services/syncService');
+const initService = require('./services/initService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +52,9 @@ app.use('/api/estudiantes', validateApiAccess, estudiantesRoutes);
 app.use('/api/asignaciones', validateApiAccess, asignacionesRoutes);
 app.use('/api/sync', validateApiAccess, syncRoutes);
 app.use('/api/matching', validateApiAccess, matchingRoutes);
+app.use('/api/contact', validateApiAccess, contactRoutes);
+app.use('/api/student-codes', validateApiAccess, studentCodeRoutes);
+app.use('/api/auto-notifications', validateApiAccess, autoNotificationRoutes);
 
 // Ruta principal
 app.get('/', (req, res) => {
@@ -496,6 +503,11 @@ async function initializeSystem() {
             console.log('Conexiones verificadas exitosamente');
             console.log(`   - Base de datos: ${healthCheck.database.pacientesCount} pacientes, ${healthCheck.database.estudiantesCount} estudiantes`);
             console.log(`   - Google Sheets: ${healthCheck.googleSheets.pacientesCount} registros encontrados`);
+            
+            // Inicializar sistema y validar códigos de estudiante
+            console.log('Inicializando sistema y validando códigos...');
+            await initService.initializeSystem();
+            console.log('✅ Sistema inicializado y códigos validados');
             
             // Iniciar sistema automático
             syncScheduler.start();

@@ -8,19 +8,57 @@ router.get('/', async (req, res) => {
     const db = await getConnection();
     const [rows] = await db.execute(`
       SELECT 
-        id, nombre_completo, edad, telefono, email, ciudad,
-        tipo_tratamiento_inferido, nivel_dolor, prioridad,
-        fecha_registro, activo
-      FROM pacientes 
-      WHERE activo = 1 
-      ORDER BY fecha_registro DESC 
-      LIMIT 50
+        p.id, 
+        p.nombre_completo, 
+        p.edad, 
+        p.telefono, 
+        p.email, 
+        p.ciudad,
+        p.tipo_tratamiento_inferido, 
+        p.nivel_dolor, 
+        p.prioridad,
+        p.fecha_registro, 
+        p.activo,
+        p.estado,
+        a.id_estudiante as estudiante_asignado,
+        e.nombre_completo as estudiante_nombre,
+        e.codigo_estudiante as estudiante_codigo
+      FROM pacientes p
+      LEFT JOIN asignaciones a ON p.id = a.id_paciente AND a.estado IN ('asignado', 'en_tratamiento')
+      LEFT JOIN estudiantes_odontologia e ON a.id_estudiante = e.id
+      WHERE p.activo = 1 
+      ORDER BY p.fecha_registro DESC 
+      LIMIT 100
     `);
+    
+    // Procesar los datos para determinar el estado real
+    const pacientesProcesados = rows.map(paciente => {
+      let estadoReal = 'pendiente';
+      
+      // Si tiene estudiante asignado, el estado es 'asignado'
+      if (paciente.estudiante_asignado) {
+        estadoReal = 'asignado';
+      } else if (paciente.estado && paciente.estado !== '') {
+        // Si no tiene estudiante pero tiene estado, usar ese estado
+        estadoReal = paciente.estado;
+      }
+      
+      return {
+        ...paciente,
+        estado: estadoReal,
+        // Asegurar que los campos críticos tengan valores por defecto
+        nombre_completo: paciente.nombre_completo || 'Sin nombre',
+        telefono: paciente.telefono || 'No especificado',
+        tipo_tratamiento_inferido: paciente.tipo_tratamiento_inferido || 'No especificado',
+        prioridad: paciente.prioridad || 'Moderada',
+        nivel_dolor: paciente.nivel_dolor || 0
+      };
+    });
     
     res.json({
       success: true,
-      total: rows.length,
-      data: rows
+      total: pacientesProcesados.length,
+      data: pacientesProcesados
     });
   } catch (error) {
     console.error('Error obteniendo pacientes:', error);
