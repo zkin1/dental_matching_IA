@@ -4,17 +4,55 @@ const studentCodeService = require('./studentCodeService');
 
 class AutoNotificationService {
     constructor() {
-        this.transporter = nodemailer.createTransport({
-            service: process.env.EMAIL_SERVICE || 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            }
-        });
+        // Configuración del transporter con validaciones
+        const emailService = process.env.EMAIL_SERVICE || 'gmail';
+        const emailUser = process.env.EMAIL_USER;
+        const emailPass = process.env.EMAIL_PASS;
+        
+        if (!emailUser || !emailPass) {
+            console.warn('⚠️ Configuración de email incompleta. Las notificaciones no funcionarán.');
+            this.transporter = null;
+        } else {
+            this.transporter = nodemailer.createTransport({
+                service: emailService,
+                auth: {
+                    user: emailUser,
+                    pass: emailPass
+                },
+                // Configuraciones adicionales de seguridad
+                secure: true,
+                tls: {
+                    rejectUnauthorized: false
+                },
+                // Timeouts
+                connectionTimeout: 10000,
+                greetingTimeout: 10000,
+                socketTimeout: 10000
+            });
+            
+            // Verificar configuración del transporter
+            this.verifyTransporter();
+        }
         
         this.logs = [];
-        this.maxRetries = 3;
-        this.retryDelay = 5000; // 5 segundos
+        this.maxRetries = parseInt(process.env.NOTIFICATION_RETRY_ATTEMPTS) || 3;
+        this.retryDelay = parseInt(process.env.NOTIFICATION_RETRY_DELAY_MS) || 5000;
+    }
+
+    /**
+     * Verifica la configuración del transporter
+     */
+    async verifyTransporter() {
+        if (!this.transporter) return false;
+        
+        try {
+            await this.transporter.verify();
+            console.log('✅ Transporter de email verificado correctamente');
+            return true;
+        } catch (error) {
+            console.error('❌ Error verificando transporter:', error.message);
+            return false;
+        }
     }
 
     /**
@@ -22,6 +60,16 @@ class AutoNotificationService {
      */
     async sendAssignmentNotifications(asignacionData) {
         const { paciente_id, estudiante_id, fecha_asignacion } = asignacionData;
+        
+        // Verificar que el transporter esté configurado
+        if (!this.transporter) {
+            console.warn('⚠️ Transporter no configurado, saltando notificaciones');
+            return {
+                success: false,
+                message: 'Transporter de email no configurado',
+                error: 'Configuración de email incompleta'
+            };
+        }
         
         try {
             // Obtener datos completos del paciente y estudiante
@@ -34,6 +82,11 @@ class AutoNotificationService {
                 throw new Error('No se pudieron obtener los datos del paciente o estudiante');
             }
 
+            // Validar que ambos tengan email
+            if (!paciente.email || !estudiante.email) {
+                throw new Error('Paciente o estudiante no tienen email válido');
+            }
+
             // Enviar correos de forma asíncrona para no bloquear la respuesta
             const notificationPromises = [
                 this.sendStudentNotification(paciente, estudiante, fecha_asignacion),
@@ -43,9 +96,11 @@ class AutoNotificationService {
             // Ejecutar en paralelo pero no esperar la respuesta
             Promise.allSettled(notificationPromises).then(results => {
                 results.forEach((result, index) => {
-                    const type = index === 0 ? 'Estudiante' : 'Paciente';
+                    const type = index === 0 ? 'estudiante' : 'paciente';
                     if (result.status === 'fulfilled') {
                         this.logNotification('success', `${type}: ${result.value}`, asignacionData);
+                        // Marcar como notificado en la base de datos
+                        this.markAsNotified(paciente_id, estudiante_id);
                     } else {
                         this.logNotification('error', `${type}: ${result.reason}`, asignacionData);
                     }
@@ -55,8 +110,8 @@ class AutoNotificationService {
             return {
                 success: true,
                 message: 'Notificaciones enviadas correctamente',
-                paciente: paciente.nombre,
-                estudiante: estudiante.nombre
+                paciente: paciente.nombre || paciente.nombre_completo,
+                estudiante: estudiante.nombre || estudiante.nombre_completo
             };
 
         } catch (error) {
@@ -337,15 +392,16 @@ Fecha de Asignación: ${fechaFormateada}
      * Obtiene datos del paciente
      */
     async getPacienteData(pacienteId) {
-        const connection = await getConnection();
+        const pool = await getConnection();
         try {
-            const [rows] = await connection.execute(
-                'SELECT id, nombre, edad, prioridad, estado, email FROM pacientes WHERE id = ?',
+            const [rows] = await pool.execute(
+                'SELECT id, nombre_completo as nombre, edad, prioridad, estado, email FROM pacientes WHERE id = ?',
                 [pacienteId]
             );
             return rows[0];
-        } finally {
-            connection.release();
+        } catch (error) {
+            console.error(`❌ Error obteniendo datos del paciente ${pacienteId}:`, error.message);
+            return null;
         }
     }
 
@@ -353,15 +409,16 @@ Fecha de Asignación: ${fechaFormateada}
      * Obtiene datos del estudiante
      */
     async getEstudianteData(estudianteId) {
-        const connection = await getConnection();
+        const pool = await getConnection();
         try {
-            const [rows] = await connection.execute(
-                'SELECT id, nombre, email, codigo_estudiante, especialidades FROM estudiantes_odontologia WHERE id = ?',
+            const [rows] = await pool.execute(
+                'SELECT id, nombre_completo as nombre, email, codigo_estudiante, especialidades FROM estudiantes_odontologia WHERE id = ?',
                 [estudianteId]
             );
             return rows[0];
-        } finally {
-            connection.release();
+        } catch (error) {
+            console.error(`❌ Error obteniendo datos del estudiante ${estudianteId}:`, error.message);
+            return null;
         }
     }
 
@@ -437,6 +494,30 @@ Fecha de Asignación: ${fechaFormateada}
             removed: initialCount - this.logs.length,
             remaining: this.logs.length
         };
+    }
+
+    /**
+     * Marca la asignación como notificada en la base de datos
+     */
+    async markAsNotified(paciente_id, estudiante_id) {
+        try {
+            const pool = await getConnection();
+            const fechaNotificacion = new Date();
+            
+            // Actualizar el estado de la asignación
+            await pool.execute(`
+                UPDATE asignaciones 
+                SET notificado_por_email = 1, 
+                    fecha_notificacion = ?,
+                    estado = 'notificado'
+                WHERE id_paciente = ? AND id_estudiante = ?
+            `, [fechaNotificacion, paciente_id, estudiante_id]);
+            
+            console.log(`✅ Asignación marcada como notificada: Paciente ${paciente_id} ↔ Estudiante ${estudiante_id}`);
+            
+        } catch (error) {
+            console.error(`❌ Error marcando como notificada: ${error.message}`);
+        }
     }
 }
 

@@ -1266,7 +1266,7 @@ function renderAsignacionesTable() {
     tbody.innerHTML = '';
     
     if (!data.asignaciones || !Array.isArray(data.asignaciones)) {
-        tbody.innerHTML = '<tr><td colspan="9">No hay asignaciones para mostrar</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10">No hay asignaciones para mostrar</td></tr>';
         return;
     }
     
@@ -1283,6 +1283,11 @@ function renderAsignacionesTable() {
         
         // Estado de la asignación
         const estado = asignacion.estado || 'asignado';
+        
+        // Estado de notificación
+        const notificado = asignacion.notificado_por_email === 1;
+        const fechaNotificacion = asignacion.fecha_notificacion ? 
+            new Date(asignacion.fecha_notificacion).toLocaleDateString() : null;
         
         // Tipo de asignación (manual o automática)
         const tipoAsignacion = asignacion.observaciones_sistema && 
@@ -1306,6 +1311,31 @@ function renderAsignacionesTable() {
         // Prioridad del paciente
         const prioridad = asignacion.prioridad || 'Moderada';
         
+        // Botones de acción
+        let actionButtons = `
+            <button class="btn btn-sm btn-secondary" onclick="verAsignacion(${asignacion.id})" title="Ver detalles">
+                <i class="fas fa-eye"></i> Ver
+            </button>
+        `;
+        
+        // Si no ha sido notificado, mostrar botón para marcar como notificado
+        if (!notificado && estado === 'asignado') {
+            actionButtons += `
+                <button class="btn btn-sm btn-success" onclick="marcarComoNotificado(${asignacion.id})" title="Marcar como notificado">
+                    <i class="fas fa-envelope"></i> Notificar
+                </button>
+            `;
+        }
+        
+        // Si ya fue notificado, mostrar botón para marcar como contactado
+        if (notificado && estado === 'notificado') {
+            actionButtons += `
+                <button class="btn btn-sm btn-info" onclick="marcarComoContactado(${asignacion.id})" title="Marcar como contactado">
+                    <i class="fas fa-phone"></i> Contactado
+                </button>
+            `;
+        }
+        
         row.innerHTML = `
             <td>${asignacion.id}</td>
             <td>
@@ -1321,13 +1351,14 @@ function renderAsignacionesTable() {
                 <small style="color: #6b7280;">Prioridad: ${prioridad}</small>
             </td>
             <td><span class="score-badge ${getScoreClass(score)}">${score}</span></td>
-            <td><span class="status-badge ${estadoClass}">${estado.toUpperCase()}</span></td>
+            <td>
+                <span class="status-badge ${estadoClass}">${estado.toUpperCase()}</span>
+                ${notificado ? `<br><small style="color: #059669;">✓ Notificado ${fechaNotificacion ? fechaNotificacion : ''}</small>` : ''}
+            </td>
             <td>${fecha}</td>
             <td><span class="badge ${tipoAsignacion === 'Manual' ? 'manual' : 'auto'}">${tipoAsignacion}</span></td>
             <td>
-                <button class="btn btn-sm btn-secondary" onclick="verAsignacion(${asignacion.id})" title="Ver detalles">
-                    <i class="fas fa-eye"></i> Ver
-                </button>
+                ${actionButtons}
             </td>
         `;
         tbody.appendChild(row);
@@ -1343,8 +1374,14 @@ function updateAssignmentCounts() {
     
     const total = data.asignaciones.length;
     const asignadas = data.asignaciones.filter(a => a.estado === 'asignado').length;
+    const notificadas = data.asignaciones.filter(a => a.estado === 'notificado').length;
+    const contactadas = data.asignaciones.filter(a => a.estado === 'contactado').length;
     const enTratamiento = data.asignaciones.filter(a => a.estado === 'en_tratamiento').length;
     const completadas = data.asignaciones.filter(a => a.estado === 'completado').length;
+    
+    // Contadores de notificaciones
+    const notificadasPorEmail = data.asignaciones.filter(a => a.notificado_por_email === 1).length;
+    const pendientesNotificacion = data.asignaciones.filter(a => a.notificado_por_email === 0).length;
     
     // Actualizar contadores en el dashboard si están disponibles
     const totalMatchesElement = document.getElementById('totalMatches');
@@ -1352,7 +1389,48 @@ function updateAssignmentCounts() {
         totalMatchesElement.textContent = total;
     }
     
-    console.log(`📊 Contadores de asignaciones: Total: ${total}, Asignadas: ${asignadas}, En Tratamiento: ${enTratamiento}, Completadas: ${completadas}`);
+    // Mostrar estadísticas en consola
+    console.log(`📊 Contadores de asignaciones:`);
+    console.log(`   Total: ${total}`);
+    console.log(`   Asignadas: ${asignadas}`);
+    console.log(`   Notificadas: ${notificadas} (${notificadasPorEmail} por email)`);
+    console.log(`   Contactadas: ${contactadas}`);
+    console.log(`   En Tratamiento: ${enTratamiento}`);
+    console.log(`   Completadas: ${completadas}`);
+    console.log(`   Pendientes de notificación: ${pendientesNotificacion}`);
+    
+    // Actualizar contadores en la interfaz si existen
+    updateDashboardCounters({
+        total,
+        asignadas,
+        notificadas,
+        contactadas,
+        enTratamiento,
+        completadas,
+        notificadasPorEmail,
+        pendientesNotificacion
+    });
+}
+
+// Función para actualizar contadores en el dashboard
+function updateDashboardCounters(counters) {
+    // Buscar elementos del dashboard para actualizar
+    const elements = {
+        'totalAsignaciones': counters.total,
+        'asignadas': counters.asignadas,
+        'notificadas': counters.notificadas,
+        'contactadas': counters.contactadas,
+        'enTratamiento': counters.enTratamiento,
+        'completadas': counters.completadas,
+        'pendientesNotificacion': counters.pendientesNotificacion
+    };
+    
+    Object.entries(elements).forEach(([id, value]) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = value;
+        }
+    });
 }
 
 // Nueva función para obtener la clase CSS del score
@@ -3012,5 +3090,65 @@ function updateAssignmentNotificationStatus(asignacion) {
             statusElement.className = 'notification-status pending';
             statusElement.innerHTML = '<i class="fas fa-clock"></i> Pendiente';
         }
+    }
+}
+
+// Función para marcar una asignación como notificada
+async function marcarComoNotificado(asignacionId) {
+    try {
+        console.log(`🔄 Marcando asignación ${asignacionId} como notificada...`);
+        
+        const response = await fetch(`/api/asignaciones/${asignacionId}/notify`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccessMessage('Asignación marcada como notificada exitosamente');
+            // Recargar la tabla
+            await loadAsignaciones();
+        } else {
+            showErrorMessage(`Error: ${result.message}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error marcando como notificado:', error);
+        showErrorMessage('Error al marcar como notificado');
+    }
+}
+
+// Función para marcar una asignación como contactada
+async function marcarComoContactado(asignacionId) {
+    try {
+        console.log(`🔄 Marcando asignación ${asignacionId} como contactada...`);
+        
+        const response = await fetch(`/api/asignaciones/${asignacionId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                estado: 'contactado',
+                observaciones_sistema: 'Marcado como contactado manualmente'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccessMessage('Asignación marcada como contactada exitosamente');
+            // Recargar la tabla
+            await loadAsignaciones();
+        } else {
+            showErrorMessage(`Error: ${result.message}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error marcando como contactada:', error);
+        showErrorMessage('Error al marcar como contactada');
     }
 }

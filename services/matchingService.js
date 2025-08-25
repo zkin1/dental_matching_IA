@@ -1,4 +1,5 @@
 const { getConnection } = require('../config/database');
+const autoNotificationService = require('./autoNotificationService');
 
 class MatchingService {
     constructor() {
@@ -169,6 +170,19 @@ class MatchingService {
                         
                         console.log(`✅ Match: ${paciente.nombre_completo} ↔ ${mejorEstudiante.nombre_completo}`);
                         console.log(`   Tratamiento: ${paciente.tipo_tratamiento_inferido}, Score: ${matchResult.score.toFixed(2)}`);
+                        
+                        // ENVIAR NOTIFICACIONES POR CORREO
+                        try {
+                            await autoNotificationService.sendAssignmentNotifications({
+                                paciente_id: paciente.id,
+                                estudiante_id: mejorEstudiante.id,
+                                fecha_asignacion: new Date()
+                            });
+                            console.log(`📧 Notificaciones enviadas para el match: ${paciente.nombre_completo} ↔ ${mejorEstudiante.nombre_completo}`);
+                        } catch (notificationError) {
+                            console.error(`❌ Error enviando notificaciones: ${notificationError.message}`);
+                            // No fallar el match por errores de notificación
+                        }
                     }
                 } else {
                     console.log(`⚠️ No se encontró match adecuado para: ${paciente.nombre_completo} (${paciente.tipo_tratamiento_inferido})`);
@@ -598,8 +612,9 @@ class MatchingService {
         const [result] = await connection.execute(`
             INSERT INTO asignaciones (
                 id_paciente, id_estudiante, fecha_asignacion,
-                score_compatibilidad, estado, observaciones_sistema, codigo_acceso
-            ) VALUES (?, ?, NOW(), ?, 'asignado', ?, ?)
+                score_compatibilidad, estado, observaciones_sistema, codigo_acceso,
+                fecha_creacion, fecha_actualizacion
+            ) VALUES (?, ?, NOW(), ?, 'asignado', ?, ?, NOW(), NOW())
         `, [
             paciente.id, 
             estudiante.id, 

@@ -2,18 +2,32 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 3306,
-  connectionLimit: 10,
-  acquireTimeout: 60000,
-  timeout: 60000,
-  // Configuraciones adicionales recomendadas
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'dental_matching',
+  port: parseInt(process.env.DB_PORT) || 3306,
+  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
+  acquireTimeout: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 60000,
+  timeout: parseInt(process.env.DB_TIMEOUT) || 60000,
+  // Configuraciones de seguridad y optimización
   reconnect: true,
   charset: 'utf8mb4',
-  timezone: 'local'
+  timezone: 'local',
+  // Configuraciones adicionales de seguridad
+  ssl: process.env.DB_SSL === 'true' ? {
+    rejectUnauthorized: false
+  } : false,
+  // Configuraciones de rendimiento
+  multipleStatements: false, // Prevenir SQL injection
+  dateStrings: true,
+  // Configuraciones de conexión
+  waitForConnections: true,
+  queueLimit: 0,
+  // Configuraciones de timeout
+  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
+  // Configuraciones de debug (solo en desarrollo)
+  debug: process.env.NODE_ENV === 'development' ? ['ComQueryPacket'] : false
 };
 
 let pool;
@@ -52,7 +66,25 @@ const executeQuery = async (query, params = []) => {
     if (!pool) {
       pool = mysql.createPool(dbConfig);
     }
-    console.log('🔍 Ejecutando query:', query.substring(0, 100) + '...');
+    
+    // Validar que la query no sea peligrosa
+    if (typeof query !== 'string' || query.trim().length === 0) {
+      throw new Error('Query inválida');
+    }
+    
+    // Prevenir SQL injection básico
+    if (query.toLowerCase().includes('drop') || 
+        query.toLowerCase().includes('delete from') ||
+        query.toLowerCase().includes('truncate') ||
+        query.toLowerCase().includes('alter table')) {
+      throw new Error('Operación no permitida por seguridad');
+    }
+    
+    // Log solo en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Ejecutando query:', query.substring(0, 100) + '...');
+    }
+    
     const [rows, fields] = await pool.execute(query, params);
     return { rows, fields };
   } catch (error) {

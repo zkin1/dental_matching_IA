@@ -18,11 +18,21 @@ class GoogleSheetsService {
         try {
             console.log('🔑 Inicializando Google Sheets API...');
             
-            // Configurar JWT
+            // Validar variables de entorno requeridas
+            if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || 
+                !process.env.GOOGLE_PRIVATE_KEY || 
+                !process.env.GOOGLE_SHEET_ID) {
+                throw new Error('Configuración de Google Sheets incompleta. Verifique las variables de entorno.');
+            }
+            
+            // Configurar JWT con validaciones
             const serviceAccountAuth = new JWT({
                 email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
                 key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-                scopes: ['https://www.googleapis.com/auth/spreadsheets']
+                scopes: [
+                    'https://www.googleapis.com/auth/spreadsheets',
+                    'https://www.googleapis.com/auth/drive.readonly'
+                ]
             });
 
             // Inicializar documento
@@ -34,6 +44,7 @@ class GoogleSheetsService {
             
             console.log('✅ Google Sheets API inicializada');
             console.log(`📋 Hoja: ${this.sheet.title}`);
+            console.log(`📊 Total de hojas: ${this.doc.sheetCount}`);
             
             return true;
         } catch (error) {

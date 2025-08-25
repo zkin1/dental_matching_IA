@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 require('dotenv').config();
 
 // Importar rutas
@@ -26,11 +29,90 @@ const PORT = process.env.PORT || 3000;
 let systemInitialized = false;
 let initializationError = null;
 
-// Middlewares
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// Middlewares de seguridad y optimización
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            frameSrc: ["'none'"]
+        }
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    }
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutos
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // máximo 100 requests por ventana
+    message: {
+        success: false,
+        error: 'Demasiadas solicitudes desde esta IP, intente nuevamente más tarde',
+        timestamp: new Date().toISOString()
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+app.use('/api/', limiter);
+
+// Compresión gzip
+app.use(compression());
+
+// CORS configurado de forma segura
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: process.env.CORS_CREDENTIALS === 'true',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
+// Parsers con límites de seguridad
+app.use(express.json({ 
+    limit: process.env.REQUEST_TIMEOUT_MS || '10mb',
+    verify: (req, res, buf) => {
+        try {
+            JSON.parse(buf);
+        } catch (e) {
+            res.status(400).json({
+                success: false,
+                error: 'JSON inválido',
+                timestamp: new Date().toISOString()
+            });
+            throw new Error('JSON inválido');
+        }
+    }
+}));
+app.use(express.urlencoded({ 
+    extended: true, 
+    limit: process.env.REQUEST_TIMEOUT_MS || '10mb' 
+}));
+
+// Archivos estáticos con headers de seguridad
+app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        }
+        if (path.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+        }
+        // Prevenir clickjacking
+        res.setHeader('X-Frame-Options', 'DENY');
+        // Prevenir MIME type sniffing
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+    }
+}));
 
 // Middleware para logging de requests (solo en desarrollo)
 if (process.env.NODE_ENV === 'development') {
@@ -42,7 +124,30 @@ if (process.env.NODE_ENV === 'development') {
 
 // Middleware de validación para rutas API sensibles
 const validateApiAccess = (req, res, next) => {
-    // Aquí puedes agregar validación adicional si es necesario
+    // Validar que la request tenga un User-Agent válido
+    const userAgent = req.get('User-Agent');
+    if (!userAgent || userAgent.length < 10) {
+        return res.status(400).json({
+            success: false,
+            error: 'User-Agent inválido',
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    // Validar que la request tenga un Content-Type válido para POST/PUT
+    if ((req.method === 'POST' || req.method === 'PUT') && 
+        !req.is('application/json') && 
+        !req.is('application/x-www-form-urlencoded')) {
+        return res.status(400).json({
+            success: false,
+            error: 'Content-Type inválido',
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    // Agregar timestamp de request para auditoría
+    req.requestTimestamp = new Date();
+    
     next();
 };
 
@@ -421,20 +526,40 @@ async function getSystemHealth() {
     return health;
 }
 
-// Manejo de errores
+// Middleware de manejo de errores mejorado
 app.use((err, req, res, next) => {
-    console.error('Error del servidor:', err);
+    // Log del error con contexto
+    const errorContext = {
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        path: req.path,
+        ip: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('User-Agent'),
+        requestId: req.headers['x-request-id'] || 'unknown',
+        error: err.message,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    };
+    
+    console.error('❌ Error del servidor:', errorContext);
     
     // No exponer stack traces en producción
-    const error = process.env.NODE_ENV === 'production' 
+    const errorMessage = process.env.NODE_ENV === 'production' 
         ? 'Error interno del servidor'
         : err.message;
     
-    res.status(500).json({
+    // Determinar código de estado apropiado
+    let statusCode = 500;
+    if (err.status) statusCode = err.status;
+    if (err.code === 'ENOENT') statusCode = 404;
+    if (err.code === 'EACCES') statusCode = 403;
+    
+    res.status(statusCode).json({
         success: false,
-        error,
+        error: errorMessage,
         timestamp: new Date().toISOString(),
-        requestId: req.headers['x-request-id'] || 'unknown'
+        requestId: errorContext.requestId,
+        path: req.path,
+        method: req.method
     });
 });
 
@@ -560,6 +685,13 @@ const server = app.listen(PORT, async () => {
 });
 
 // Timeout para requests
-server.timeout = 30000; // 30 segundos
+server.timeout = parseInt(process.env.REQUEST_TIMEOUT_MS) || 30000; // 30 segundos por defecto
+
+// Configurar keep-alive
+server.keepAliveTimeout = 65000; // 65 segundos
+server.headersTimeout = 66000; // 66 segundos
+
+// Configurar límites de conexiones
+server.maxConnections = 100;
 
 console.log('Iniciando Dental Matching System...');
