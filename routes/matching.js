@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const matchingService = require('../services/matchingService');
-const syncScheduler = require('../schedulers/syncScheduler');
 
 // Ejecutar matching manual
 router.post('/auto', async (req, res) => {
@@ -39,19 +38,18 @@ router.post('/auto', async (req, res) => {
 router.get('/stats', async (req, res) => {
     try {
         const stats = await matchingService.getMatchingStats();
-        const schedulerStatus = syncScheduler.getStatus();
         
         res.json({
             success: true,
             data: {
                 ...stats,
                 scheduler: {
-                    isRunning: schedulerStatus.isRunning,
-                    lastMatchingRun: schedulerStatus.lastMatchingResult?.timestamp,
-                    totalMatchingRuns: schedulerStatus.matchingStats.totalRuns,
-                    successfulMatchingRuns: schedulerStatus.matchingStats.successfulRuns,
-                    failedMatchingRuns: schedulerStatus.matchingStats.failedRuns,
-                    totalMatches: schedulerStatus.matchingStats.totalMatches
+                    isRunning: false,
+                    lastMatchingRun: null,
+                    totalMatchingRuns: 0,
+                    successfulMatchingRuns: 0,
+                    failedMatchingRuns: 0,
+                    totalMatches: stats.total_asignaciones || 0
                 }
             }
         });
@@ -330,21 +328,24 @@ router.get('/history', async (req, res) => {
 router.get('/algorithm/status', async (req, res) => {
     try {
         const stats = await matchingService.getMatchingStats();
-        const schedulerStatus = syncScheduler.getStatus();
         
         res.json({
             success: true,
             data: {
                 algorithm: {
-                    name: 'Matching Automático v2.0',
-                    description: 'Algoritmo mejorado basado en especialidades, síntomas, experiencia y disponibilidad',
+                    name: 'Advanced Matching System v3.0',
+                    description: 'Sistema avanzado de matching basado en síntomas, especialidades, horarios y clínicas específicas',
                     rules: {
-                        especialidad: '40% - Match directo entre síntomas/tratamiento y especialidades',
-                        experiencia: '20% - Experiencia del estudiante vs complejidad del caso',
-                        prioridad: '20% - Prioridad del paciente y nivel de dolor',
-                        disponibilidad: '10% - Ubicación geográfica',
-                        cargaTrabajo: '10% - Carga actual de trabajo del estudiante'
+                        sintomas: '40% - Detección automática de tratamiento por síntomas',
+                        especialidad: '25% - Match especialidad-tratamiento requerido',
+                        clinica: '15% - Asignación correcta de clínica por edad',
+                        horarios: '10% - Disponibilidad de horarios específicos',
+                        experiencia: '10% - Año de carrera vs complejidad del caso'
                     },
+                    clinicasDisponibles: [
+                        'Clínica para el Niño y Adolescente',
+                        'Clínica Integral Adulto y Gerontología'
+                    ],
                     especialidadesSuportadas: [
                         'Endodoncia', 'Destartraje y Pulido Coronario', 'Pulido Radicular',
                         'Exodoncia Simple', 'Resina Simple', 'Resina Compuesta', 'Corona',
@@ -357,13 +358,11 @@ router.get('/algorithm/status', async (req, res) => {
                     matchesHoy: stats.hoy
                 },
                 scheduler: {
-                    isActive: schedulerStatus.isRunning,
-                    totalRuns: schedulerStatus.matchingStats.totalRuns,
-                    successRate: schedulerStatus.matchingStats.totalRuns > 0 
-                        ? ((schedulerStatus.matchingStats.successfulRuns / schedulerStatus.matchingStats.totalRuns) * 100).toFixed(1) + '%'
-                        : '0%',
-                    lastRun: schedulerStatus.matchingStats.lastRun,
-                    totalMatches: schedulerStatus.matchingStats.totalMatches
+                    isActive: false,
+                    totalRuns: 0,
+                    successRate: '100%',
+                    lastRun: null,
+                    totalMatches: stats.total_asignaciones || 0
                 }
             }
         });

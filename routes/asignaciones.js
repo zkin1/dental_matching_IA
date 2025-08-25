@@ -60,44 +60,50 @@ router.get('/', async (req, res) => {
       });
     }
     
-    // Consulta principal con JOIN para obtener datos completos
-    let rows = [];
-    try {
-      const [fullRows] = await db.execute(`
-        SELECT 
-          a.id, 
-          a.estado, 
-          a.fecha_asignacion, 
-          a.score_compatibilidad,
-          a.observaciones_sistema,
-          a.observaciones_estudiante,
-          a.id_paciente,
-          a.id_estudiante,
-          a.notificado_por_email,
-          a.fecha_notificacion,
-          a.recordatorios_enviados,
-          COALESCE(p.nombre_completo, 'Paciente no encontrado') as paciente_nombre,
-          COALESCE(p.telefono, 'N/A') as paciente_telefono,
-          COALESCE(p.tipo_tratamiento_inferido, 'No especificado') as tipo_tratamiento_inferido,
-          COALESCE(p.nivel_dolor, 0) as nivel_dolor,
-          COALESCE(p.prioridad, 'Moderada') as prioridad,
-          COALESCE(e.nombre_completo, 'Estudiante no encontrado') as estudiante_nombre,
-          COALESCE(e.codigo_estudiante, 'N/A') as codigo_estudiante,
-          COALESCE(e.año_carrera, 'N/A') as año_carrera,
-          COALESCE(e.especialidades, 'General') as especialidades
-        FROM asignaciones a
-        LEFT JOIN pacientes p ON a.id_paciente = p.id
-        LEFT JOIN estudiantes_odontologia e ON a.id_estudiante = e.id
-        ORDER BY a.fecha_asignacion DESC
-        LIMIT 100
-      `);
-      rows = fullRows;
-      console.log(`✅ Consulta exitosa: ${rows.length} asignaciones encontradas`);
-    } catch (joinError) {
-      console.log('⚠️ Error en JOIN principal, intentando consulta alternativa:', joinError.message);
-      
-      // Si falla el JOIN principal, intentar con consulta más simple
-      try {
+            // Consulta principal con JOIN para obtener datos completos
+        let rows = [];
+        try {
+          const [fullRows] = await db.execute(`
+            SELECT 
+              a.id, 
+              a.estado, 
+              a.fecha_asignacion, 
+              a.score_compatibilidad,
+              a.observaciones_sistema,
+              a.observaciones_estudiante,
+              a.id_paciente,
+              a.id_estudiante,
+              a.codigo_acceso,
+              a.algoritmo_version,
+              a.fecha_primer_contacto,
+              a.fecha_inicio_tratamiento,
+              a.fecha_finalizacion,
+              a.motivo_cancelacion,
+              a.notificado_por_email,
+              a.fecha_notificacion,
+              a.recordatorios_enviados,
+              COALESCE(p.nombre_completo, 'Paciente no encontrado') as paciente_nombre,
+              COALESCE(p.telefono, 'N/A') as paciente_telefono,
+              COALESCE(p.tipo_tratamiento_inferido, 'No especificado') as tipo_tratamiento_inferido,
+              COALESCE(p.nivel_dolor, 0) as nivel_dolor,
+              COALESCE(p.prioridad, 'Moderada') as prioridad,
+              COALESCE(e.nombre_completo, 'Estudiante no encontrado') as estudiante_nombre,
+              COALESCE(e.codigo_estudiante, 'N/A') as codigo_estudiante,
+              COALESCE(e.año_carrera, 'N/A') as año_carrera,
+              COALESCE(e.especialidades, 'General') as especialidades
+            FROM asignaciones a
+            LEFT JOIN pacientes p ON a.id_paciente = p.id
+            LEFT JOIN estudiantes_odontologia e ON a.id_estudiante = e.id
+            ORDER BY a.fecha_asignacion DESC
+            LIMIT 100
+          `);
+          rows = fullRows;
+          console.log(`✅ Consulta exitosa: ${rows.length} asignaciones encontradas`);
+        } catch (joinError) {
+          console.log('⚠️ Error en JOIN principal, intentando consulta alternativa:', joinError.message);
+          
+          // Si falla el JOIN principal, intentar con consulta más simple
+          try {
         const [simpleRows] = await db.execute(`
           SELECT 
             a.id, 

@@ -10,16 +10,13 @@ require('dotenv').config();
 const pacientesRoutes = require('./routes/pacientes');
 const estudiantesRoutes = require('./routes/estudiantes');
 const asignacionesRoutes = require('./routes/asignaciones');
-const syncRoutes = require('./routes/sync');
 const matchingRoutes = require('./routes/matching');
 const contactRoutes = require('./routes/contact');
 const studentCodeRoutes = require('./routes/studentCodes');
 const autoNotificationRoutes = require('./routes/autoNotifications');
 
 // Importar servicios
-const syncScheduler = require('./schedulers/syncScheduler');
 const matchingService = require('./services/matchingService');
-const syncService = require('./services/syncService');
 const initService = require('./services/initService');
 
 const app = express();
@@ -51,111 +48,91 @@ app.use(helmet({
     }
 }));
 
+app.use(compression());
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production' 
+        ? [process.env.FRONTEND_URL || 'http://localhost:3000']
+        : true,
+    credentials: true
+}));
+
 // Rate limiting
 const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutos
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // máximo 100 requests por ventana
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 1000, // límite de 1000 requests por ventana por IP
     message: {
-        success: false,
-        error: 'Demasiadas solicitudes desde esta IP, intente nuevamente más tarde',
-        timestamp: new Date().toISOString()
+        error: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde.'
     },
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+});
+app.use(limiter);
+
+// Rate limiting más estricto para APIs sensibles
+const strictLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: {
+        error: 'Demasiadas solicitudes a esta API, intenta de nuevo más tarde.'
+    }
 });
 
-app.use('/api/', limiter);
+// Middlewares básicos
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Compresión gzip
-app.use(compression());
-
-// CORS configurado de forma segura
-app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    credentials: process.env.CORS_CREDENTIALS === 'true',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+// Servir archivos estáticos
+app.use(express.static('public', {
+    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0
 }));
 
-// Parsers con límites de seguridad
-app.use(express.json({ 
-    limit: process.env.REQUEST_TIMEOUT_MS || '10mb',
-    verify: (req, res, buf) => {
-        try {
-            JSON.parse(buf);
-        } catch (e) {
-            res.status(400).json({
-                success: false,
-                error: 'JSON inválido',
-                timestamp: new Date().toISOString()
-            });
-            throw new Error('JSON inválido');
-        }
-    }
-}));
-app.use(express.urlencoded({ 
-    extended: true, 
-    limit: process.env.REQUEST_TIMEOUT_MS || '10mb' 
-}));
-
-// Archivos estáticos con headers de seguridad
-app.use(express.static(path.join(__dirname, 'public'), {
-    setHeaders: (res, path) => {
-        if (path.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript');
-        }
-        if (path.endsWith('.css')) {
-            res.setHeader('Content-Type', 'text/css');
-        }
-        // Prevenir clickjacking
-        res.setHeader('X-Frame-Options', 'DENY');
-        // Prevenir MIME type sniffing
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-    }
-}));
-
-// Middleware para logging de requests (solo en desarrollo)
-if (process.env.NODE_ENV === 'development') {
-    app.use((req, res, next) => {
-        console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-        next();
-    });
-}
-
-// Middleware de validación para rutas API sensibles
-const validateApiAccess = (req, res, next) => {
-    // Validar que la request tenga un User-Agent válido
-    const userAgent = req.get('User-Agent');
-    if (!userAgent || userAgent.length < 10) {
-        return res.status(400).json({
-            success: false,
-            error: 'User-Agent inválido',
-            timestamp: new Date().toISOString()
-        });
+// Middleware de validación de acceso a API
+function validateApiAccess(req, res, next) {
+    // En desarrollo, permitir todas las requests
+    if (process.env.NODE_ENV === 'development') {
+        return next();
     }
     
-    // Validar que la request tenga un Content-Type válido para POST/PUT
-    if ((req.method === 'POST' || req.method === 'PUT') && 
-        !req.is('application/json') && 
-        !req.is('application/x-www-form-urlencoded')) {
-        return res.status(400).json({
-            success: false,
-            error: 'Content-Type inválido',
-            timestamp: new Date().toISOString()
+    // En producción, validar API key si es necesario
+    const apiKey = req.headers['x-api-key'];
+    if (process.env.API_KEY && apiKey !== process.env.API_KEY) {
+        return res.status(401).json({ 
+            success: false, 
+            error: 'API key requerida o inválida' 
         });
     }
-    
-    // Agregar timestamp de request para auditoría
-    req.requestTimestamp = new Date();
     
     next();
-};
+}
+
+// Middleware de manejo de errores de base de datos
+function handleDatabaseError(error, req, res, next) {
+    console.error('Error de base de datos:', error);
+    
+    if (error.code === 'ECONNREFUSED') {
+        return res.status(503).json({
+            success: false,
+            error: 'Servicio de base de datos no disponible'
+        });
+    }
+    
+    if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+        return res.status(503).json({
+            success: false,
+            error: 'Error de autenticación con la base de datos'
+        });
+    }
+    
+    res.status(500).json({
+        success: false,
+        error: 'Error interno del servidor'
+    });
+}
 
 // Rutas API
 app.use('/api/pacientes', validateApiAccess, pacientesRoutes);
 app.use('/api/estudiantes', validateApiAccess, estudiantesRoutes);
 app.use('/api/asignaciones', validateApiAccess, asignacionesRoutes);
-app.use('/api/sync', validateApiAccess, syncRoutes);
 app.use('/api/matching', validateApiAccess, matchingRoutes);
 app.use('/api/contact', validateApiAccess, contactRoutes);
 app.use('/api/student-codes', validateApiAccess, studentCodeRoutes);
@@ -166,17 +143,16 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Ruta de testing con información consolidada
+// Ruta de testing simplificada
 app.get('/api/test', async (req, res) => {
     try {
-        const schedulerStatus = syncScheduler.getStatus();
         const systemHealth = await getSystemHealth();
         
         res.json({
             success: true,
             message: 'API funcionando correctamente',
             timestamp: new Date().toISOString(),
-            version: '0.2.0',
+            version: '0.3.0',
             system: {
                 initialized: systemInitialized,
                 initError: initializationError,
@@ -184,12 +160,8 @@ app.get('/api/test', async (req, res) => {
                 memory: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
             },
             services: {
-                autoSync: schedulerStatus.isRunning,
-                syncJobs: schedulerStatus.jobsCount,
-                lastSync: schedulerStatus.lastSyncResult?.timestamp || null,
-                lastMatching: schedulerStatus.lastMatchingResult?.timestamp || null,
                 database: systemHealth.database,
-                googleSheets: systemHealth.googleSheets
+                matching: true
             },
             stats: systemHealth.stats
         });
@@ -199,499 +171,218 @@ app.get('/api/test', async (req, res) => {
             success: true,
             message: 'API funcionando correctamente',
             timestamp: new Date().toISOString(),
-            version: '0.2.0',
+            version: '0.3.0',
             error: 'Error obteniendo estadísticas detalladas',
             services: {
-                autoSync: syncScheduler.getStatus().isRunning
+                database: true,
+                matching: true
             }
         });
     }
 });
 
-// Ruta de estadísticas consolidadas del sistema
+// Ruta de estadísticas simplificadas
 app.get('/api/stats', async (req, res) => {
     try {
-        const [syncStats, matchingStats] = await Promise.all([
-            syncService.getStats().catch(err => ({ error: err.message })),
-            matchingService.getMatchingStats().catch(err => ({ error: err.message }))
-        ]);
-        
-        const schedulerStatus = syncScheduler.getStatus();
+        const matchingStats = await matchingService.getStats().catch(err => ({ error: err.message }));
         
         res.json({
             success: true,
             timestamp: new Date().toISOString(),
             data: {
-                sync: syncStats,
-                matching: matchingStats,
-                scheduler: {
-                    isRunning: schedulerStatus.isRunning,
-                    totalJobs: schedulerStatus.jobsCount,
-                    syncStats: schedulerStatus.stats,
-                    matchingStats: schedulerStatus.matchingStats,
-                    lastResults: {
-                        sync: schedulerStatus.lastSyncResult,
-                        matching: schedulerStatus.lastMatchingResult
-                    }
-                },
-                system: {
-                    uptime: Math.floor(process.uptime()),
-                    nodeVersion: process.version,
-                    platform: process.platform,
-                    memory: process.memoryUsage(),
-                    environment: process.env.NODE_ENV || 'development'
-                }
+                matching: matchingStats
             }
         });
     } catch (error) {
-        console.error('Error obteniendo estadísticas consolidadas:', error);
+        console.error('Error en /api/stats:', error);
         res.status(500).json({
             success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
+            error: error.message
         });
     }
 });
 
-// Ruta específica para estadísticas de matching (compatible con frontend)
+// Ruta de estadísticas de matching
 app.get('/api/matching-stats', async (req, res) => {
     try {
-        const [matchingStats] = await Promise.all([
-            matchingService.getMatchingStats()
-        ]);
-        
-        const schedulerStatus = syncScheduler.getStatus();
-        
+        const stats = await matchingService.getStats();
         res.json({
             success: true,
-            timestamp: new Date().toISOString(),
-            data: {
-                matching: matchingStats,
-                scheduler: {
-                    isRunning: schedulerStatus.isRunning,
-                    lastMatchingRun: schedulerStatus.lastMatchingResult?.timestamp,
-                    totalRuns: schedulerStatus.matchingStats.totalRuns,
-                    successfulRuns: schedulerStatus.matchingStats.successfulRuns,
-                    failedRuns: schedulerStatus.matchingStats.failedRuns,
-                    totalMatches: schedulerStatus.matchingStats.totalMatches,
-                    lastRun: schedulerStatus.matchingStats.lastRun
-                }
-            }
+            data: stats
         });
     } catch (error) {
         console.error('Error obteniendo estadísticas de matching:', error);
         res.status(500).json({
             success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
+            error: error.message
         });
     }
 });
 
-// Ruta para obtener estado del scheduler
-app.get('/api/scheduler/status', (req, res) => {
-    try {
-        const status = syncScheduler.getStatus();
-        const nextRuns = syncScheduler.getNextRuns();
-        
-        res.json({
-            success: true,
-            timestamp: new Date().toISOString(),
-            data: {
-                ...status,
-                nextRuns,
-                capabilities: {
-                    autoSync: true,
-                    autoMatching: true,
-                    cleanup: true,
-                    fullNightlyProcess: true
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Error obteniendo estado del scheduler:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-// Ruta para controlar el scheduler
-app.post('/api/scheduler/:action', (req, res) => {
-    try {
-        const { action } = req.params;
-        let result;
-        
-        switch (action) {
-            case 'start':
-                if (!syncScheduler.getStatus().isRunning) {
-                    syncScheduler.start();
-                    result = { message: 'Sistema automático iniciado (Sync + Matching)' };
-                } else {
-                    result = { message: 'Sistema automático ya está ejecutándose' };
-                }
-                break;
-                
-            case 'stop':
-                if (syncScheduler.getStatus().isRunning) {
-                    syncScheduler.stop();
-                    result = { message: 'Sistema automático detenido' };
-                } else {
-                    result = { message: 'Sistema automático ya está detenido' };
-                }
-                break;
-                
-            case 'restart':
-                syncScheduler.stop();
-                setTimeout(() => {
-                    syncScheduler.start();
-                }, 1000);
-                result = { message: 'Sistema automático reiniciado' };
-                break;
-                
-            default:
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'Acción no válida. Use: start, stop, restart',
-                    timestamp: new Date().toISOString()
-                });
-        }
-        
-        res.json({
-            success: true,
-            timestamp: new Date().toISOString(),
-            ...result
-        });
-        
-    } catch (error) {
-        console.error('Error controlando scheduler:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-// Dashboard en tiempo real
+// Dashboard simplificado
 app.get('/api/dashboard', async (req, res) => {
     try {
-        // Obtener datos básicos en paralelo
-        const [syncStats, matchingStats] = await Promise.all([
-            syncService.getStats().catch(() => ({ pacientes: { total: 0 }, estudiantes: { total: 0 } })),
-            matchingService.getMatchingStats().catch(() => ({ total_asignaciones: 0, hoy: 0 }))
-        ]);
-        
-        const schedulerStatus = syncScheduler.getStatus();
-        
-        // Obtener datos más detallados solo si los básicos funcionan
-        let pendientes = [];
-        let disponibles = [];
-        
-        try {
-            [pendientes, disponibles] = await Promise.all([
-                matchingService.getPacientesPendientes(),
-                matchingService.getEstudiantesDisponibles()
-            ]);
-        } catch (error) {
-            console.warn('No se pudieron obtener datos detallados para dashboard:', error.message);
-        }
-        
-        const successRate = schedulerStatus.matchingStats.totalRuns > 0 
-            ? ((schedulerStatus.matchingStats.successfulRuns / schedulerStatus.matchingStats.totalRuns) * 100).toFixed(1) + '%'
-            : 'N/A';
+        const matchingStats = await matchingService.getStats().catch(() => ({ 
+            totalMatches: 0, 
+            successRate: 0, 
+            pendingMatches: 0 
+        }));
         
         res.json({
             success: true,
             timestamp: new Date().toISOString(),
             data: {
                 overview: {
-                    totalPatients: syncStats.pacientes?.total || 0,
-                    pendingPatients: pendientes.length,
-                    totalStudents: syncStats.estudiantes?.total || 0,
-                    availableStudents: disponibles.length,
-                    totalMatches: matchingStats.total_asignaciones || 0,
-                    todayMatches: matchingStats.hoy || 0,
-                    systemStatus: schedulerStatus.isRunning ? 'Automático' : 'Manual'
+                    totalMatches: matchingStats.totalMatches || 0,
+                    successRate: matchingStats.successRate || 0,
+                    pendingMatches: matchingStats.pendingMatches || 0,
+                    systemStatus: systemInitialized ? 'activo' : 'inicializando'
                 },
-                matching: {
-                    algorithm: 'v2.0 - Especialidad + Experiencia + Prioridad + Disponibilidad',
-                    averageScore: matchingStats.score_promedio || 0,
-                    automaticMatches: matchingStats.automaticas || 0,
-                    manualMatches: matchingStats.manuales || 0,
-                    successRate
-                },
-                scheduler: {
-                    isActive: schedulerStatus.isRunning,
-                    totalJobs: schedulerStatus.jobsCount,
-                    lastSync: schedulerStatus.lastSyncResult?.timestamp,
-                    lastMatching: schedulerStatus.lastMatchingResult?.timestamp,
-                    nextRuns: syncScheduler.getNextRuns().slice(0, 3)
-                },
+                recentActivity: matchingStats.recentActivity || [],
                 performance: {
-                    uptime: `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m`,
-                    memory: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
-                    nodeVersion: process.version,
-                    initialized: systemInitialized
+                    uptime: Math.floor(process.uptime()),
+                    memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
                 }
             }
         });
     } catch (error) {
-        console.error('Error generando dashboard:', error);
+        console.error('Error en dashboard:', error);
         res.status(500).json({
             success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
+            error: error.message
         });
     }
 });
 
-// Health check completo
+// Health check simplificado
 app.get('/api/health', async (req, res) => {
     try {
-        const schedulerStatus = syncScheduler.getStatus();
-        const systemHealth = await getSystemHealth();
+        const health = await getSystemHealth();
         
-        const health = {
-            status: 'healthy',
+        const status = health.database ? 'healthy' : 'unhealthy';
+        const httpStatus = health.database ? 200 : 503;
+        
+        res.status(httpStatus).json({
+            success: health.database,
+            status: status,
             timestamp: new Date().toISOString(),
             services: {
-                api: true,
-                database: systemHealth.database,
-                googleSheets: systemHealth.googleSheets,
-                scheduler: schedulerStatus.isRunning,
-                matching: schedulerStatus.matchingStats.totalRuns >= 0
+                database: health.database,
+                matching: true
             },
-            uptime: Math.floor(process.uptime()),
-            version: '0.2.0',
-            initialized: systemInitialized
-        };
-        
-        // Determinar estado general
-        const criticalServices = ['api', 'database'];
-        const criticalHealthy = criticalServices.every(service => health.services[service] === true);
-        
-        if (!criticalHealthy) {
-            health.status = 'unhealthy';
-        } else if (!health.services.googleSheets || !health.services.scheduler) {
-            health.status = 'degraded';
-        }
-        
-        const statusCode = health.status === 'healthy' ? 200 : 
-                          health.status === 'degraded' ? 200 : 503;
-        
-        res.status(statusCode).json({
-            success: true,
-            data: health
+            stats: health.stats
         });
-        
     } catch (error) {
         console.error('Error en health check:', error);
-        res.status(500).json({
+        res.status(503).json({
             success: false,
-            data: {
-                status: 'unhealthy',
-                timestamp: new Date().toISOString(),
-                error: error.message,
-                uptime: Math.floor(process.uptime()),
-                version: '0.2.0'
-            }
+            status: 'unhealthy',
+            timestamp: new Date().toISOString(),
+            error: error.message
         });
     }
 });
 
-// Función helper para obtener el estado del sistema
+// Función simplificada de health check
 async function getSystemHealth() {
     const health = {
         database: false,
-        googleSheets: false,
-        stats: null
+        stats: {
+            dbRecords: 0
+        }
     };
     
     try {
-        const connectionTest = await syncService.testConnection();
-        health.database = connectionTest.database ? true : false;
-        health.googleSheets = connectionTest.googleSheets ? true : false;
-        health.stats = {
-            totalPatients: connectionTest.database?.pacientesCount || 0,
-            totalStudents: connectionTest.database?.estudiantesCount || 0,
-            sheetsRecords: connectionTest.googleSheets?.pacientesCount || 0
-        };
+        // Test básico de base de datos
+        const { getConnection } = require('./config/database');
+        const connection = await getConnection();
+        await connection.execute('SELECT 1');
+        health.database = true;
+        
+        // Estadísticas básicas
+        const [rows] = await connection.execute(`
+            SELECT 
+                (SELECT COUNT(*) FROM pacientes) as pacientes,
+                (SELECT COUNT(*) FROM estudiantes_odontologia) as estudiantes,
+                (SELECT COUNT(*) FROM asignaciones) as asignaciones
+        `);
+        
+        if (rows[0]) {
+            health.stats = {
+                dbRecords: rows[0].pacientes + rows[0].estudiantes + rows[0].asignaciones,
+                pacientes: rows[0].pacientes,
+                estudiantes: rows[0].estudiantes,
+                asignaciones: rows[0].asignaciones
+            };
+        }
     } catch (error) {
-        console.warn('Error en health check:', error.message);
+        console.error('Error en health check:', error);
+        health.database = false;
     }
     
     return health;
 }
 
-// Middleware de manejo de errores mejorado
-app.use((err, req, res, next) => {
-    // Log del error con contexto
-    const errorContext = {
-        timestamp: new Date().toISOString(),
-        method: req.method,
-        path: req.path,
-        ip: req.ip || req.connection.remoteAddress,
-        userAgent: req.get('User-Agent'),
-        requestId: req.headers['x-request-id'] || 'unknown',
-        error: err.message,
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    };
-    
-    console.error('❌ Error del servidor:', errorContext);
-    
-    // No exponer stack traces en producción
-    const errorMessage = process.env.NODE_ENV === 'production' 
-        ? 'Error interno del servidor'
-        : err.message;
-    
-    // Determinar código de estado apropiado
-    let statusCode = 500;
-    if (err.status) statusCode = err.status;
-    if (err.code === 'ENOENT') statusCode = 404;
-    if (err.code === 'EACCES') statusCode = 403;
-    
-    res.status(statusCode).json({
-        success: false,
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-        requestId: errorContext.requestId,
-        path: req.path,
-        method: req.method
-    });
-});
+// Middleware de manejo de errores
+app.use(handleDatabaseError);
 
-// 404 Handler
-app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        error: `Ruta no encontrada: ${req.method} ${req.path}`,
-        timestamp: new Date().toISOString(),
-        availableRoutes: [
-            'GET /',
-            'GET /api/test',
-            'GET /api/health',
-            'GET /api/stats',
-            'GET /api/dashboard',
-            'GET /api/matching-stats',
-            'POST /api/scheduler/{action}',
-            '/api/pacientes/*',
-            '/api/estudiantes/*',
-            '/api/asignaciones/*',
-            '/api/sync/*',
-            '/api/matching/*'
-        ]
-    });
-});
-
-// Manejo graceful del cierre del servidor
-const gracefulShutdown = (signal) => {
-    console.log(`\n${signal} recibido, cerrando servidor gracefully...`);
-    
-    // Detener el scheduler primero
-    if (syncScheduler.getStatus().isRunning) {
-        console.log('Deteniendo sistema automático...');
-        syncScheduler.stop();
+// Manejo de rutas no encontradas
+app.use('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+        res.status(404).json({
+            success: false,
+            error: 'Endpoint no encontrado'
+        });
+    } else {
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
     }
-    
-    // Dar tiempo para que las operaciones terminen
-    setTimeout(() => {
-        console.log('Servidor cerrado exitosamente');
-        process.exit(0);
-    }, 3000); // Aumentado a 3 segundos para operaciones complejas
-};
-
-// Listeners para señales de cierre
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-// Manejo de errores no capturados
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    // No cerrar el proceso automáticamente, solo logear
 });
 
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
-    gracefulShutdown('UNCAUGHT_EXCEPTION');
+// Manejo graceful de cierre
+process.on('SIGTERM', () => {
+    console.log('📛 Recibida señal SIGTERM, cerrando servidor...');
+    process.exit(0);
 });
 
-// Inicialización del sistema
+process.on('SIGINT', () => {
+    console.log('📛 Recibida señal SIGINT, cerrando servidor...');
+    process.exit(0);
+});
+
+// Inicialización del sistema simplificada
 async function initializeSystem() {
     try {
-        console.log('Verificando conexiones del sistema...');
-        const healthCheck = await syncService.testConnection();
+        console.log('🚀 Inicializando sistema Dental Matching...');
+        const healthCheck = await getSystemHealth();
         
-        if (healthCheck.success) {
-            console.log('Conexiones verificadas exitosamente');
-            console.log(`   - Base de datos: ${healthCheck.database.pacientesCount} pacientes, ${healthCheck.database.estudiantesCount} estudiantes`);
-            console.log(`   - Google Sheets: ${healthCheck.googleSheets.pacientesCount} registros encontrados`);
-            
-            // Inicializar sistema y validar códigos de estudiante
-            console.log('Inicializando sistema y validando códigos...');
-            await initService.initializeSystem();
-            console.log('✅ Sistema inicializado y códigos validados');
-            
-            // Iniciar sistema automático
-            syncScheduler.start();
-            console.log('Sistema automático iniciado (Sync + Matching + Cleanup)');
-            
-            // Mostrar próximas ejecuciones
-            const nextRuns = syncScheduler.getNextRuns().slice(0, 3);
-            if (nextRuns.length > 0) {
-                console.log('Próximas ejecuciones automáticas:');
-                nextRuns.forEach(run => {
-                    const timeStr = new Date(run.nextRun).toLocaleTimeString();
-                    console.log(`   - ${run.job} (${run.type}): ${timeStr}`);
-                });
-            }
+        if (healthCheck.database) {
+            console.log('✅ Base de datos conectada correctamente');
+            console.log(`   - Registros totales: ${healthCheck.stats.dbRecords}`);
             
             systemInitialized = true;
             initializationError = null;
+            console.log('✅ Sistema inicializado correctamente');
         } else {
-            console.warn('Advertencia: Algunas conexiones fallaron');
-            console.warn(`   Error: ${healthCheck.error}`);
-            console.log('Sistema iniciado en modo manual - revise la configuración');
-            
-            systemInitialized = false;
-            initializationError = healthCheck.error;
+            throw new Error('No se pudo conectar a la base de datos');
         }
-        
     } catch (error) {
-        console.error('Error durante inicialización:', error.message);
-        console.log('Sistema iniciado en modo básico - algunas funciones pueden no estar disponibles');
-        
+        console.error('❌ Error inicializando sistema:', error.message);
         systemInitialized = false;
         initializationError = error.message;
+        
+        // No salir del proceso, permitir que el servidor funcione parcialmente
+        console.log('⚠️ Sistema iniciado en modo degradado');
     }
 }
 
 // Iniciar servidor
 const server = app.listen(PORT, async () => {
-    console.log('=====================================');
-    console.log(`Dental Matching System v0.2`);
-    console.log(`Servidor: http://localhost:${PORT}`);
-    console.log(`Dashboard: http://localhost:${PORT}`);
-    console.log(`API Test: http://localhost:${PORT}/api/test`);
-    console.log(`Stats: http://localhost:${PORT}/api/stats`);
-    console.log(`Matching: http://localhost:${PORT}/api/matching`);
-    console.log(`Health: http://localhost:${PORT}/api/health`);
-    console.log('=====================================');
+    console.log(`🏥 Servidor Dental Matching iniciado en puerto ${PORT}`);
+    console.log(`📱 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 URL: http://localhost:${PORT}`);
     
-    // Inicializar sistema después de que el servidor esté listo
-    setTimeout(initializeSystem, 2000);
+    // Inicializar sistema
+    await initializeSystem();
 });
 
-// Timeout para requests
-server.timeout = parseInt(process.env.REQUEST_TIMEOUT_MS) || 30000; // 30 segundos por defecto
-
-// Configurar keep-alive
-server.keepAliveTimeout = 65000; // 65 segundos
-server.headersTimeout = 66000; // 66 segundos
-
-// Configurar límites de conexiones
-server.maxConnections = 100;
-
-console.log('Iniciando Dental Matching System...');
+module.exports = app;

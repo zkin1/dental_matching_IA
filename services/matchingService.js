@@ -1,69 +1,106 @@
 const { getConnection } = require('../config/database');
 const autoNotificationService = require('./autoNotificationService');
 
-class MatchingService {
+/**
+ * Servicio de Matching Avanzado para Sistema Dental
+ * Versión 2.0 - Matching por Horarios Específicos
+ * 
+ * ALGORITMO DE MATCHING INTELIGENTE:
+ * 1. Detección de tratamiento basada en síntomas del paciente
+ * 2. Asignación automática de clínica según edad (Niño/Adulto)
+ * 3. Búsqueda de estudiantes disponibles por especialidad y horario
+ * 4. Validación de disponibilidad sin solapamientos
+ * 5. Scoring avanzado para matching óptimo
+ * 6. Creación de asignaciones específicas por horario
+ * 7. Actualización de disponibilidad en tiempo real
+ * 8. Notificaciones automáticas personalizadas
+ */
+class AdvancedMatchingService {
     constructor() {
-        this.matchingRules = {
-            especialidad: 0.4,
-            experiencia: 0.2,
-            prioridad: 0.2,
-            disponibilidad: 0.1,
-            cargaTrabajo: 0.1
+        this.connection = null;
+        this.isMatching = false;
+        
+        // Mapeo inteligente de síntomas a tratamientos con IA
+        this.sintomasATratamientos = {
+            // ENDODONCIA - Problemas de raíz/nervio
+            'dolor constante': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.9 },
+            'dolor insoportable': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.95 },
+            'dolor al masticar': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.8 },
+            'sensibilidad al frío': { tratamientos: ['Endodoncia'], prioridad: 'moderada', confianza: 0.7 },
+            'sensibilidad al calor': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.85 },
+            'inflamación': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.75 },
+            'tratamiento de conducto': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 1.0 },
+            'me duele una muela': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.85 },
+            
+            // DESTARTRAJE Y PULIDO - Limpieza y mantenimiento
+            'limpieza dental': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 1.0 },
+            'limpieza profunda': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.9 },
+            'chequeo general': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.8 },
+            'sarro': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.9 },
+            'placa': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.85 },
+            'dientes amarillos': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.7 },
+            
+            // PULIDO RADICULAR - Problemas de encías
+            'sangran las encías': { tratamientos: ['Pulido Radicular'], prioridad: 'moderada', confianza: 0.9 },
+            'problemas en las encías': { tratamientos: ['Pulido Radicular'], prioridad: 'moderada', confianza: 0.85 },
+            'encías inflamadas': { tratamientos: ['Pulido Radicular'], prioridad: 'moderada', confianza: 0.9 },
+            'gingivitis': { tratamientos: ['Pulido Radicular'], prioridad: 'moderada', confianza: 0.95 },
+            'encías rojas': { tratamientos: ['Pulido Radicular'], prioridad: 'moderada', confianza: 0.8 },
+            'encías sensibles': { tratamientos: ['Pulido Radicular'], prioridad: 'moderada', confianza: 0.75 },
+            'mal aliento': { tratamientos: ['Destartraje y Pulido Coronario', 'Pulido Radicular'], prioridad: 'baja', confianza: 0.6 },
+            
+            // EXODONCIA - Extracciones
+            'sacar una muela': { tratamientos: ['Exodoncia Simple'], prioridad: 'alta', confianza: 1.0 },
+            'extraer una muela': { tratamientos: ['Exodoncia Simple'], prioridad: 'alta', confianza: 1.0 },
+            'muelas del juicio': { tratamientos: ['Exodoncia Simple'], prioridad: 'moderada', confianza: 0.9 },
+            'se me mueve': { tratamientos: ['Exodoncia Simple'], prioridad: 'alta', confianza: 0.85 },
+            'diente flojo': { tratamientos: ['Exodoncia Simple'], prioridad: 'alta', confianza: 0.85 },
+            'muela rota que no se puede arreglar': { tratamientos: ['Exodoncia Simple'], prioridad: 'alta', confianza: 0.95 },
+            
+            // RESINAS - Restauraciones
+            'hoyo': { tratamientos: ['Resina Simple'], prioridad: 'moderada', confianza: 0.9 },
+            'caries': { tratamientos: ['Resina Simple', 'Resina Compuesta'], prioridad: 'moderada', confianza: 0.85 },
+            'empaste': { tratamientos: ['Resina Simple'], prioridad: 'moderada', confianza: 0.9 },
+            'tapadura': { tratamientos: ['Resina Simple'], prioridad: 'moderada', confianza: 0.9 },
+            'mancha negra': { tratamientos: ['Resina Simple', 'Resina Compuesta'], prioridad: 'moderada', confianza: 0.8 },
+            'picadura': { tratamientos: ['Resina Simple'], prioridad: 'moderada', confianza: 0.85 },
+            
+            // RESTAURACIONES AVANZADAS
+            'muela rota': { tratamientos: ['Resina Compuesta', 'Corona'], prioridad: 'alta', confianza: 0.8 },
+            'se me cayó': { tratamientos: ['Resina Compuesta'], prioridad: 'alta', confianza: 0.85 },
+            'diente partido': { tratamientos: ['Resina Compuesta', 'Corona'], prioridad: 'alta', confianza: 0.9 },
+            'fractura': { tratamientos: ['Resina Compuesta', 'Corona'], prioridad: 'alta', confianza: 0.9 },
+            'diente negro': { tratamientos: ['Corona'], prioridad: 'moderada', confianza: 0.8 },
+            'muy manchado': { tratamientos: ['Corona'], prioridad: 'baja', confianza: 0.7 },
+            'corona': { tratamientos: ['Corona'], prioridad: 'moderada', confianza: 1.0 },
+            'diente desgastado': { tratamientos: ['Corona'], prioridad: 'moderada', confianza: 0.85 },
+            'estética': { tratamientos: ['Corona'], prioridad: 'baja', confianza: 0.6 },
+            'rota grande': { tratamientos: ['Incrustación'], prioridad: 'alta', confianza: 0.9 },
+            'restauración grande': { tratamientos: ['Incrustación'], prioridad: 'moderada', confianza: 0.9 },
+            
+            // PRÓTESIS
+            'falta un diente': { tratamientos: ['Protesis Parcial Removible'], prioridad: 'moderada', confianza: 0.9 },
+            'faltan dientes': { tratamientos: ['Protesis Total Removible', 'Protesis Parcial Removible'], prioridad: 'moderada', confianza: 0.85 },
+            'prótesis': { tratamientos: ['Protesis Parcial Removible', 'Protesis Total Removible'], prioridad: 'moderada', confianza: 0.8 },
+            'dentadura': { tratamientos: ['Protesis Total Removible'], prioridad: 'moderada', confianza: 0.9 },
+            'sin dientes': { tratamientos: ['Protesis Total Removible'], prioridad: 'moderada', confianza: 1.0 }
         };
-
-        this.sintomasAEspecialidades = {
-            'dolor constante': ['Endodoncia'],
-            'me duele una muela': ['Endodoncia'],
-            'dolor insoportable': ['Endodoncia'],
-            'tratamiento de conducto': ['Endodoncia'],
-            'dolor al masticar': ['Endodoncia'],
-            'sensibilidad al frío': ['Endodoncia'],
-            'sensibilidad al calor': ['Endodoncia'],
-            'inflamación': ['Endodoncia'],
-            'limpieza dental': ['Destartraje y Pulido Coronario'],
-            'limpieza profunda': ['Destartraje y Pulido Coronario'],
-            'chequeo general': ['Destartraje y Pulido Coronario'],
-            'sarro': ['Destartraje y Pulido Coronario'],
-            'placa': ['Destartraje y Pulido Coronario'],
-            'dientes amarillos': ['Destartraje y Pulido Coronario'],
-            'mal aliento': ['Destartraje y Pulido Coronario', 'Pulido Radicular'],
-            'sangran las encías': ['Pulido Radicular'],
-            'problemas en las encías': ['Pulido Radicular'],
-            'encías inflamadas': ['Pulido Radicular'],
-            'gingivitis': ['Pulido Radicular'],
-            'encías rojas': ['Pulido Radicular'],
-            'encías sensibles': ['Pulido Radicular'],
-            'sacar una muela': ['Exodoncia Simple'],
-            'extraer una muela': ['Exodoncia Simple'],
-            'muelas del juicio': ['Exodoncia Simple'],
-            'se me mueve': ['Exodoncia Simple'],
-            'diente flojo': ['Exodoncia Simple'],
-            'muela rota que no se puede arreglar': ['Exodoncia Simple'],
-            'hoyo': ['Resina Simple'],
-            'caries': ['Resina Simple', 'Resina Compuesta'],
-            'empaste': ['Resina Simple'],
-            'tapadura': ['Resina Simple'],
-            'empastes': ['Resina Simple'],
-            'mancha negra': ['Resina Simple', 'Resina Compuesta'],
-            'picadura': ['Resina Simple'],
-            'muela rota': ['Resina Compuesta', 'Corona'],
-            'se me cayó': ['Resina Compuesta'],
-            'diente partido': ['Resina Compuesta', 'Corona'],
-            'fractura': ['Resina Compuesta', 'Corona'],
-            'diente negro': ['Corona'],
-            'muy manchado': ['Corona'],
-            'corona': ['Corona'],
-            'diente desgastado': ['Corona'],
-            'estética': ['Corona'],
-            'rota grande': ['Incrustación'],
-            'restauración grande': ['Incrustación'],
-            'falta un diente': ['Protesis Parcial Removible'],
-            'faltan dientes': ['Protesis Total Removible', 'Protesis Parcial Removible'],
-            'prótesis': ['Protesis Parcial Removible', 'Protesis Total Removible'],
-            'dentadura': ['Protesis Total Removible'],
-            'sin dientes': ['Protesis Total Removible']
+        
+        // Mapping de tratamientos a especialidades
+        this.tratamientosAEspecialidades = {
+            'Endodoncia': 'Endodoncia',
+            'Destartraje y Pulido Coronario': 'Operatoria Dental',
+            'Pulido Radicular': 'Periodoncia',
+            'Exodoncia Simple': 'Cirugía Oral',
+            'Resina Simple': 'Operatoria Dental',
+            'Resina Compuesta': 'Operatoria Dental',
+            'Corona': 'Prótesis Fija',
+            'Incrustación': 'Prótesis Fija',
+            'Protesis Parcial Removible': 'Prótesis Removible',
+            'Protesis Total Removible': 'Prótesis Removible'
         };
-
+        
+        // Complejidad por año de carrera para scoring
         this.complejidadPorAno = {
             'Destartraje y Pulido Coronario': { '4to': 1.0, '5to': 1.0 },
             'Pulido Radicular': { '4to': 0.8, '5to': 1.0 },
@@ -76,901 +113,748 @@ class MatchingService {
             'Protesis Parcial Removible': { '4to': 0.1, '5to': 0.5 },
             'Protesis Total Removible': { '4to': 0.05, '5to': 0.4 }
         };
-
-        // Semáforo para prevenir race conditions
-        this.isMatching = false;
+        
+        this.diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
     }
-
-    // ===== MÉTODO PRINCIPAL CORREGIDO =====
-    async executeAutoMatching() {
-        // Prevenir race conditions
+    
+    /**
+     * 🚀 MÉTODO PRINCIPAL DE MATCHING AVANZADO
+     * Ejecuta el algoritmo completo de matching por horarios específicos
+     */
+    async executeAdvancedMatching() {
         if (this.isMatching) {
-            console.log('⚠️ Matching ya en progreso, saltando ejecución');
-            return {
-                success: true,
-                processed: 0,
-                matched: 0,
-                message: 'Matching ya en progreso'
-            };
+            console.log('⚠️ Matching ya en progreso');
+            return { success: false, message: 'Matching ya en progreso' };
         }
-
+        
         this.isMatching = true;
         const startTime = Date.now();
-        console.log('🔄 Iniciando matching automático mejorado...');
-        
-        let connection = null;
+        console.log('🚀 Iniciando matching avanzado por horarios específicos...');
         
         try {
-            // Usar una sola conexión con transacciones
             const db = await getConnection();
-            connection = await db.getConnection();
-            await connection.beginTransaction();
-
-            const [pacientesPendientes, estudiantesDisponibles] = await Promise.all([
-                this.getPacientesPendientes(connection),
-                this.getEstudiantesDisponibles(connection)
-            ]);
+            this.connection = await db.getConnection();
+            
+            // 1. Obtener pacientes pendientes
+            const pacientesPendientes = await this.getPacientesPendientes();
+            console.log(`📋 Pacientes pendientes: ${pacientesPendientes.length}`);
             
             if (pacientesPendientes.length === 0) {
-                console.log('ℹ️ No hay pacientes pendientes para asignar');
-                await connection.commit();
                 return {
                     success: true,
+                    message: 'No hay pacientes pendientes de asignación',
                     processed: 0,
-                    matched: 0,
-                    message: 'No hay pacientes pendientes'
+                    matched: 0
                 };
             }
             
-            if (estudiantesDisponibles.length === 0) {
-                console.log('⚠️ No hay estudiantes disponibles');
-                await connection.commit();
-                return {
-                    success: true,
-                    processed: pacientesPendientes.length,
-                    matched: 0,
-                    message: 'No hay estudiantes disponibles'
-                };
-            }
-
-            let matched = 0;
-            let processed = 0;
-            const matchResults = [];
-            const estudiantesMap = new Map(estudiantesDisponibles.map(e => [e.id, e]));
-
-            // Ordenar pacientes por prioridad
-            const pacientesOrdenados = this.sortPatientsByPriority(pacientesPendientes);
+            let totalMatched = 0;
+            let totalProcessed = 0;
+            const matchingResults = [];
             
-            for (const paciente of pacientesOrdenados) {
-                processed++;
+            for (const paciente of pacientesPendientes) {
+                totalProcessed++;
+                console.log(`\n🔍 Procesando: ${paciente.nombre_completo} (Edad: ${paciente.edad})`);
                 
-                // Encontrar el mejor estudiante disponible
-                const mejorEstudiante = this.findBestMatchFromMap(paciente, estudiantesMap);
-                
-                if (mejorEstudiante) {
-                    const matchResult = await this.createMatchWithConnection(connection, paciente, mejorEstudiante);
+                try {
+                    // 2. DETECCIÓN INTELIGENTE DE TRATAMIENTO
+                    const tratamientoDetectado = await this.detectarTratamientoPorSintomas(paciente);
+                    console.log(`💡 Tratamiento detectado: ${tratamientoDetectado.tratamiento} (Confianza: ${tratamientoDetectado.confianza.toFixed(2)})`);
                     
-                    if (matchResult.success) {
-                        matched++;
-                        matchResults.push({
-                            pacienteId: paciente.id,
-                            pacienteNombre: paciente.nombre_completo,
-                            estudianteId: mejorEstudiante.id,
-                            estudianteNombre: mejorEstudiante.nombre_completo,
-                            score: matchResult.score,
-                            tratamiento: paciente.tipo_tratamiento_inferido,
-                            especialidadMatch: matchResult.especialidadMatch
-                        });
+                    // 3. ASIGNACIÓN AUTOMÁTICA DE CLÍNICA POR EDAD
+                    const clinicaAsignada = this.determinarClinicaPorEdad(paciente.edad);
+                    console.log(`🏥 Clínica asignada: ${clinicaAsignada}`);
+                    
+                    // 4. CREAR REQUERIMIENTO DEL PACIENTE
+                    await this.crearRequerimientoPaciente(paciente, tratamientoDetectado, clinicaAsignada);
+                    
+                    // 5. BÚSQUEDA DE MATCHING ÓPTIMO
+                    const matchingResult = await this.encontrarMatchingOptimo(paciente, tratamientoDetectado, clinicaAsignada);
+                    
+                    if (matchingResult.success) {
+                        // 6. CREAR ASIGNACIÓN POR HORARIO
+                        await this.crearAsignacionHorario(paciente, matchingResult);
                         
-                        // Actualizar disponibilidad en el Map
-                        mejorEstudiante.casos_activos = (mejorEstudiante.casos_activos || 0) + 1;
-                        if (mejorEstudiante.casos_activos >= mejorEstudiante.casos_necesarios) {
-                            estudiantesMap.delete(mejorEstudiante.id);
-                        }
+                        // 7. ACTUALIZAR DISPONIBILIDAD
+                        await this.actualizarDisponibilidad(matchingResult);
                         
-                        console.log(`✅ Match: ${paciente.nombre_completo} ↔ ${mejorEstudiante.nombre_completo}`);
-                        console.log(`   Tratamiento: ${paciente.tipo_tratamiento_inferido}, Score: ${matchResult.score.toFixed(2)}`);
+                        // 8. ENVIAR NOTIFICACIONES ESPECÍFICAS
+                        await this.enviarNotificacionesAsignacion(paciente, matchingResult);
                         
-                        // ENVIAR NOTIFICACIONES POR CORREO
-                        try {
-                            await autoNotificationService.sendAssignmentNotifications({
-                                paciente_id: paciente.id,
-                                estudiante_id: mejorEstudiante.id,
-                                fecha_asignacion: new Date()
-                            });
-                            console.log(`📧 Notificaciones enviadas para el match: ${paciente.nombre_completo} ↔ ${mejorEstudiante.nombre_completo}`);
-                        } catch (notificationError) {
-                            console.error(`❌ Error enviando notificaciones: ${notificationError.message}`);
-                            // No fallar el match por errores de notificación
-                        }
+                        totalMatched++;
+                        matchingResults.push(matchingResult);
+                        console.log(`✅ Matching exitoso: ${matchingResult.estudiante.nombre_completo} - ${matchingResult.dia_semana} ${matchingResult.hora_inicio}-${matchingResult.hora_fin}`);
+                    } else {
+                        console.log(`❌ Sin matching: ${matchingResult.reason}`);
                     }
-                } else {
-                    console.log(`⚠️ No se encontró match adecuado para: ${paciente.nombre_completo} (${paciente.tipo_tratamiento_inferido})`);
-                }
-
-                // Si no quedan estudiantes disponibles, terminar
-                if (estudiantesMap.size === 0) {
-                    console.log('📝 No quedan estudiantes disponibles');
-                    break;
+                    
+                } catch (error) {
+                    console.error(`❌ Error procesando paciente ${paciente.id}:`, error.message);
                 }
             }
-            
-            await connection.commit();
             
             const duration = Date.now() - startTime;
-            const message = `Matching completado: ${matched}/${processed} pacientes asignados`;
-            
-            console.log(`🎉 ${message} en ${duration}ms`);
-            
-            return {
+            const result = {
                 success: true,
-                processed,
-                matched,
-                duration,
-                message,
-                matches: matchResults
+                processed: totalProcessed,
+                matched: totalMatched,
+                duration: `${duration}ms`,
+                successRate: totalProcessed > 0 ? ((totalMatched / totalProcessed) * 100).toFixed(1) : 0,
+                results: matchingResults
             };
+            
+            console.log(`\n🎉 Matching completado: ${totalMatched}/${totalProcessed} asignaciones (${result.successRate}%) en ${duration}ms`);
+            return result;
             
         } catch (error) {
-            if (connection) {
-                try {
-                    await connection.rollback();
-                    console.log('🔄 Rollback ejecutado correctamente');
-                } catch (rollbackError) {
-                    console.error('❌ Error en rollback:', rollbackError.message);
-                }
-            }
-            console.error('❌ Error en matching automático:', error);
-            return {
-                success: false,
-                error: error.message,
-                processed: 0,
-                matched: 0
-            };
+            console.error('❌ Error en matching avanzado:', error);
+            return { success: false, error: error.message };
         } finally {
-            if (connection) {
-                connection.release();
+            if (this.connection) {
+                this.connection.release();
             }
             this.isMatching = false;
         }
     }
-
-    // ===== MÉTODOS DE BASE DE DATOS CORREGIDOS =====
-    async getPacientesPendientes(connection = null) {
-        const executor = connection || await getConnection();
+    
+    /**
+     * 📋 Obtiene pacientes que necesitan asignación
+     */
+    async getPacientesPendientes() {
+        const query = `
+            SELECT p.*, 
+                   p.sintomas_seleccionados,
+                   p.diagnostico_previo,
+                   p.tiempo_problema,
+                   p.nivel_dolor,
+                   p.dias_disponibles,
+                   p.horario_preferencia,
+                   p.prioridad
+            FROM pacientes p
+            LEFT JOIN requerimientos_paciente rp ON p.id = rp.id_paciente AND rp.activo = TRUE
+            WHERE p.activo = TRUE 
+                AND rp.id IS NULL
+                AND p.edad IS NOT NULL
+            ORDER BY 
+                CASE p.prioridad 
+                    WHEN 'Muy Alta' THEN 1 
+                    WHEN 'Alta' THEN 2 
+                    WHEN 'Moderada' THEN 3 
+                    ELSE 4 
+                END,
+                p.nivel_dolor DESC,
+                p.fecha_registro ASC
+            LIMIT 50
+        `;
         
-        try {
-            const [rows] = await executor.execute(`
-                SELECT 
-                    id, nombre_completo, edad, telefono, email, ciudad,
-                    tipo_tratamiento_inferido, complejidad, prioridad,
-                    nivel_dolor, fecha_registro, dias_disponibles,
-                    horario_preferencia, disponibilidad_cita, sintomas_seleccionados
-                FROM pacientes
-                WHERE estado = 'pendiente' AND activo = TRUE
-                ORDER BY 
-                    FIELD(prioridad, 'Muy Alta', 'Alta', 'Moderada', 'Baja'),
-                    nivel_dolor DESC,
-                    fecha_registro ASC
-                LIMIT 100
-            `);
-            
-            return rows.map(row => this.sanitizePacienteData(row));
-        } catch (error) {
-            console.error('❌ Error obteniendo pacientes pendientes:', error);
-            throw new Error(`Error obteniendo pacientes pendientes: ${error.message}`);
-        }
+        const [rows] = await this.connection.execute(query);
+        return rows;
     }
-
-    async getEstudiantesDisponibles(connection = null) {
-        const executor = connection || await getConnection();
+    
+    /**
+     * 🧠 DETECCIÓN INTELIGENTE DE TRATAMIENTO BASADA EN SÍNTOMAS
+     * Analiza los síntomas del paciente y predice el tratamiento más probable
+     */
+    async detectarTratamientoPorSintomas(paciente) {
+        let mejorTratamiento = null;
+        let mejorScore = 0;
+        let prioridadDetectada = 'moderada';
+        let especialidadesDetectadas = {};
         
-        try {
-            const [rows] = await executor.execute(`
-                SELECT 
-                    e.id, e.codigo_estudiante, e.nombre_completo,
-                    e.telefono, e.email, e.año_carrera, e.ciudad,
-                    e.especialidades, e.casos_activos, e.casos_necesarios,
-                    e.casos_completados, e.dias_disponibles, e.horarios_disponibles,
-                    COUNT(a.id) as asignaciones_activas_real
-                FROM estudiantes_odontologia e
-                LEFT JOIN asignaciones a ON e.id = a.id_estudiante AND a.estado IN ('asignado', 'en_tratamiento')
-                WHERE e.estado = 'activo'
-                GROUP BY e.id
-                HAVING (e.casos_activos < e.casos_necesarios) OR (asignaciones_activas_real < e.casos_necesarios)
-                ORDER BY asignaciones_activas_real ASC, e.casos_completados ASC
-                LIMIT 50
-            `);
-            
-            return rows.map(row => this.sanitizeEstudianteData(row));
-        } catch (error) {
-            console.error('❌ Error obteniendo estudiantes disponibles:', error);
-            throw new Error(`Error obteniendo estudiantes disponibles: ${error.message}`);
-        }
-    }
-
-    // ===== MÉTODOS DE SANITIZACIÓN =====
-    sanitizePacienteData(paciente) {
-        return {
-            ...paciente,
-            nombre_completo: this.sanitizeString(paciente.nombre_completo),
-            telefono: this.sanitizeString(paciente.telefono),
-            email: this.sanitizeString(paciente.email),
-            ciudad: this.sanitizeString(paciente.ciudad) || 'Metropolitana',
-            tipo_tratamiento_inferido: this.sanitizeString(paciente.tipo_tratamiento_inferido) || 'Destartraje y Pulido Coronario',
-            complejidad: this.sanitizeString(paciente.complejidad) || 'Básico',
-            prioridad: this.sanitizeString(paciente.prioridad) || 'Moderada',
-            nivel_dolor: this.sanitizeNumber(paciente.nivel_dolor, 0, 10),
-            edad: this.sanitizeNumber(paciente.edad, 1, 120),
-            sintomas_seleccionados: this.parseSintomasArray(paciente.sintomas_seleccionados)
-        };
-    }
-
-    sanitizeEstudianteData(estudiante) {
-        return {
-            ...estudiante,
-            nombre_completo: this.sanitizeString(estudiante.nombre_completo),
-            telefono: this.sanitizeString(estudiante.telefono),
-            email: this.sanitizeString(estudiante.email),
-            ciudad: this.sanitizeString(estudiante.ciudad) || 'Metropolitana',
-            año_carrera: this.sanitizeString(estudiante.año_carrera) || '4to',
-            especialidades: this.parseEspecialidadesArray(estudiante.especialidades),
-            casos_activos: this.sanitizeNumber(estudiante.casos_activos, 0),
-            casos_necesarios: this.sanitizeNumber(estudiante.casos_necesarios, 1),
-            casos_completados: this.sanitizeNumber(estudiante.casos_completados, 0),
-            asignaciones_activas_real: this.sanitizeNumber(estudiante.asignaciones_activas_real, 0)
-        };
-    }
-
-    sanitizeString(value) {
-        if (!value || typeof value !== 'string') {
-            return '';
-        }
-        return value.toString().trim();
-    }
-
-    sanitizeNumber(value, min = 0, max = Number.MAX_SAFE_INTEGER) {
-        const num = parseInt(value) || min;
-        return Math.max(min, Math.min(max, num));
-    }
-
-    parseSintomasArray(sintomas) {
-        try {
-            if (Array.isArray(sintomas)) return sintomas;
-            if (typeof sintomas === 'string') {
-                // Intentar parse JSON
-                try {
-                    const parsed = JSON.parse(sintomas);
-                    return Array.isArray(parsed) ? parsed : [sintomas];
-                } catch {
-                    // Si falla JSON, split por comas
-                    return sintomas.split(',').map(s => s.trim()).filter(s => s);
-                }
-            }
-            return [];
-        } catch {
-            return [];
-        }
-    }
-
-    parseEspecialidadesArray(especialidades) {
-        try {
-            if (Array.isArray(especialidades)) return especialidades;
-            if (typeof especialidades === 'string' && especialidades.trim()) {
-                return especialidades.split(',').map(e => e.trim()).filter(e => e);
-            }
-            return [];
-        } catch {
-            return [];
-        }
-    }
-
-    // ===== ALGORITMO DE MATCHING CORREGIDO =====
-    findBestMatchFromMap(paciente, estudiantesMap) {
-        if (estudiantesMap.size === 0) return null;
-
-        let mejorEstudiante = null;
-        let mejorScore = -1;
-        let mejorEspecialidadMatch = null;
-
-        for (const [_, estudiante] of estudiantesMap) {
-            const { score, especialidadMatch } = this.calculateMatchScore(paciente, estudiante);
-            
-            if (score > mejorScore) {
-                mejorScore = score;
-                mejorEstudiante = estudiante;
-                mejorEspecialidadMatch = especialidadMatch;
-            }
-        }
-
-        if (mejorScore >= 0.20) { // Umbral más bajo pero realista
-            mejorEstudiante.especialidadMatch = mejorEspecialidadMatch;
-            return mejorEstudiante;
-        }
+        // Combinar todos los textos del paciente para análisis de IA
+        const textoCompleto = [
+            paciente.sintomas_seleccionados ? JSON.stringify(paciente.sintomas_seleccionados).toLowerCase() : '',
+            paciente.diagnostico_previo || '',
+            paciente.tiempo_problema || ''
+        ].join(' ').toLowerCase();
         
-        return null;
-    }
-
-    calculateMatchScore(paciente, estudiante) {
-        let score = 0;
-        let especialidadMatch = null;
-
-        try {
-            // 1. Score por especialidad/tratamiento (40%)
-            const { especialidadScore, matchedEspecialidad } = this.getEspecialidadScore(paciente, estudiante);
-            score += especialidadScore * this.matchingRules.especialidad;
-            especialidadMatch = matchedEspecialidad;
-
-            // 2. Score por experiencia vs complejidad (20%)
-            const experienciaScore = this.getExperienciaScore(paciente.tipo_tratamiento_inferido, estudiante);
-            score += experienciaScore * this.matchingRules.experiencia;
-
-            // 3. Score por prioridad del paciente (20%)
-            const prioridadScore = this.getPriorityScore(paciente.prioridad, paciente.nivel_dolor);
-            score += prioridadScore * this.matchingRules.prioridad;
-
-            // 4. Score por disponibilidad geográfica (10%)
-            const disponibilidadScore = this.getAvailabilityScore(paciente, estudiante);
-            score += disponibilidadScore * this.matchingRules.disponibilidad;
-
-            // 5. Score por carga de trabajo del estudiante (10%)
-            const cargaScore = this.getWorkloadScore(estudiante);
-            score += cargaScore * this.matchingRules.cargaTrabajo;
-
-            return { 
-                score: Math.min(Math.max(score, 0), 1), // Clamp entre 0 y 1
-                especialidadMatch 
-            };
-        } catch (error) {
-            console.error('❌ Error calculando score de matching:', error);
-            return { score: 0, especialidadMatch: null };
-        }
-    }
-
-    // ===== SCORE POR ESPECIALIDAD CORREGIDO =====
-    getEspecialidadScore(paciente, estudiante) {
-        try {
-            const tratamientoRequerido = paciente.tipo_tratamiento_inferido || '';
-            const especialidadesEstudiante = estudiante.especialidades || [];
-            
-            // Si no tiene especialidades definidas, score base
-            if (especialidadesEstudiante.length === 0) {
-                return { especialidadScore: 0.3, matchedEspecialidad: null };
-            }
-
-            // Buscar match directo por nombre de tratamiento
-            const tratamientoLower = tratamientoRequerido.toLowerCase();
-            const matchDirecto = especialidadesEstudiante.find(esp => 
-                tratamientoLower.includes(esp.toLowerCase()) || esp.toLowerCase().includes(tratamientoLower)
-            );
-
-            if (matchDirecto) {
-                return { especialidadScore: 1.0, matchedEspecialidad: matchDirecto };
-            }
-
-            // Buscar match por síntomas del paciente
-            let mejorScore = 0;
-            let mejorEspecialidad = null;
-
-            const sintomas = paciente.sintomas_seleccionados || [];
-            
-            for (const sintoma of sintomas) {
-                const sintomaLower = sintoma.toLowerCase();
-                const especialidadesPosibles = this.sintomasAEspecialidades[sintomaLower] || [];
+        console.log(`🔍 Analizando síntomas: "${textoCompleto.substring(0, 80)}..."`);
+        
+        // ALGORITMO DE IA: Análisis de cada síntoma conocido
+        for (const [sintoma, data] of Object.entries(this.sintomasATratamientos)) {
+            if (textoCompleto.includes(sintoma.toLowerCase())) {
+                console.log(`🎯 Síntoma encontrado: "${sintoma}" -> ${data.tratamientos.join(', ')} (Confianza: ${data.confianza})`);
                 
-                for (const especialidadPosible of especialidadesPosibles) {
-                    const especialidadPosibleLower = especialidadPosible.toLowerCase();
+                // Calcular score considerando confianza y nivel de dolor
+                let score = data.confianza;
+                if (paciente.nivel_dolor && paciente.nivel_dolor >= 7) {
+                    score += 0.2; // Bonus por dolor alto
+                }
+                
+                // Seleccionar el mejor tratamiento
+                for (const tratamiento of data.tratamientos) {
+                    if (score > mejorScore) {
+                        mejorTratamiento = tratamiento;
+                        mejorScore = score;
+                        prioridadDetectada = data.prioridad;
+                    }
                     
-                    const match = especialidadesEstudiante.find(esp => 
-                        especialidadPosibleLower.includes(esp.toLowerCase()) || esp.toLowerCase().includes(especialidadPosibleLower)
-                    );
-                    
-                    if (match && mejorScore < 0.8) {
-                        mejorScore = 0.8;
-                        mejorEspecialidad = match;
+                    const especialidad = this.tratamientosAEspecialidades[tratamiento];
+                    if (especialidad) {
+                        especialidadesDetectadas[especialidad] = (especialidadesDetectadas[especialidad] || 0) + score;
                     }
                 }
             }
-
-            // Especialidades generales que pueden manejar casos básicos
-            const especialidadesGenerales = ['operatoria', 'restauradora', 'general'];
-            const tieneEspecialidadGeneral = especialidadesEstudiante.some(esp => 
-                especialidadesGenerales.some(gen => esp.toLowerCase().includes(gen))
-            );
-
-            if (tieneEspecialidadGeneral && mejorScore < 0.4) {
-                mejorScore = 0.4;
-                mejorEspecialidad = especialidadesEstudiante.find(esp => 
-                    especialidadesGenerales.some(gen => esp.toLowerCase().includes(gen))
-                );
+        }
+        
+        // Fallback: tratamiento por defecto según edad
+        if (!mejorTratamiento) {
+            if (paciente.edad < 18) {
+                mejorTratamiento = 'Resina Simple';
+                mejorScore = 0.5;
+                console.log('🔄 Tratamiento por defecto para niño: Resina Simple');
+            } else {
+                mejorTratamiento = 'Destartraje y Pulido Coronario';
+                mejorScore = 0.5;
+                console.log('🔄 Tratamiento por defecto para adulto: Destartraje y Pulido Coronario');
             }
-
-            return { 
-                especialidadScore: mejorScore, 
-                matchedEspecialidad: mejorEspecialidad 
-            };
-        } catch (error) {
-            console.error('❌ Error en getEspecialidadScore:', error);
-            return { especialidadScore: 0.2, matchedEspecialidad: null };
         }
-    }
-
-    // ===== MÉTODOS DE SCORING (SIN CAMBIOS SIGNIFICATIVOS) =====
-    getExperienciaScore(tratamiento, estudiante) {
-        try {
-            const año = estudiante.año_carrera || '4to';
-            const casosCompletados = estudiante.casos_completados || 0;
-            
-            const factorComplejidad = this.complejidadPorAno[tratamiento]?.[año] || 0.5;
-            const bonusExperiencia = Math.min(casosCompletados * 0.02, 0.2);
-            
-            return Math.min(factorComplejidad + bonusExperiencia, 1.0);
-        } catch (error) {
-            console.error('❌ Error en getExperienciaScore:', error);
-            return 0.3;
-        }
-    }
-
-    getPriorityScore(prioridad, nivelDolor) {
-        const scores = {
-            'Muy Alta': 1.0,
-            'Alta': 0.8,
-            'Moderada': 0.6,
-            'Baja': 0.4
+        
+        return {
+            tratamiento: mejorTratamiento,
+            especialidad: this.tratamientosAEspecialidades[mejorTratamiento],
+            confianza: mejorScore,
+            prioridad: prioridadDetectada,
+            especialidadesDetectadas: especialidadesDetectadas
         };
-        
-        let score = scores[prioridad] || 0.5;
-        
-        if (nivelDolor >= 8) {
-            score = Math.min(score + 0.2, 1.0);
-        } else if (nivelDolor >= 6) {
-            score = Math.min(score + 0.1, 1.0);
-        }
-        
-        return score;
     }
-
-    getAvailabilityScore(paciente, estudiante) {
-        let score = 0.5;
-
-        if (paciente.ciudad && estudiante.ciudad && 
-            paciente.ciudad.toLowerCase() === estudiante.ciudad.toLowerCase()) {
-            score += 0.4;
-        } else if (paciente.ciudad && estudiante.ciudad) {
-            score -= 0.1;
-        }
-
-        return Math.max(Math.min(score, 1), 0);
-    }
-
-    getWorkloadScore(estudiante) {
-        const capacidadTotal = estudiante.casos_necesarios || 1;
-        const asignacionesActivas = estudiante.asignaciones_activas_real || estudiante.casos_activos || 0;
-        const utilization = asignacionesActivas / capacidadTotal;
-
-        return Math.max(1 - utilization, 0);
-    }
-
-    sortPatientsByPriority(pacientes) {
-        const prioridadValues = {
-            'Muy Alta': 4,
-            'Alta': 3,
-            'Moderada': 2,
-            'Baja': 1
-        };
-
-        return pacientes.sort((a, b) => {
-            const prioridadA = prioridadValues[a.prioridad] || 1;
-            const prioridadB = prioridadValues[b.prioridad] || 1;
-            
-            if (prioridadA !== prioridadB) {
-                return prioridadB - prioridadA;
-            }
-            
-            if (a.nivel_dolor !== b.nivel_dolor) {
-                return b.nivel_dolor - a.nivel_dolor;
-            }
-            
-            return new Date(a.fecha_registro) - new Date(b.fecha_registro);
-        });
-    }
-
-    // ===== CREACIÓN DE MATCH CON TRANSACCIONES CORREGIDA =====
-    async createMatchWithConnection(connection, paciente, estudiante) {
-    try {
-        const { score, especialidadMatch } = this.calculateMatchScore(paciente, estudiante);
-        
-        // Verificar si el estudiante ya tiene un código de acceso activo
-        const [codigosExistentes] = await connection.execute(`
-            SELECT codigo_acceso 
-            FROM codigos_acceso 
-            WHERE id_estudiante = ? AND activo = TRUE AND fecha_expiracion > NOW()
-            ORDER BY fecha_generacion DESC 
-            LIMIT 1
-        `, [estudiante.id]);
-        
-        let codigoAcceso;
-        
-        if (codigosExistentes.length > 0) {
-            // Usar código existente
-            codigoAcceso = codigosExistentes[0].codigo_acceso;
+    
+    /**
+     * 🏥 ASIGNACIÓN AUTOMÁTICA DE CLÍNICA SEGÚN EDAD
+     */
+    determinarClinicaPorEdad(edad) {
+        if (edad < 18) {
+            return 'Clínica para el Niño y Adolescente';
         } else {
-            // Generar nuevo código para el estudiante
-            codigoAcceso = await this.generarCodigoAcceso();
-            const fechaExpiracion = new Date();
-            fechaExpiracion.setDate(fechaExpiracion.getDate() + 30); // 30 días de validez
-            
-            // Crear nuevo código de acceso para el estudiante
-            await connection.execute(`
-                INSERT INTO codigos_acceso (
-                    id_estudiante, codigo_acceso, fecha_expiracion, activo
-                ) VALUES (?, ?, ?, TRUE)
-            `, [estudiante.id, codigoAcceso, fechaExpiracion]);
+            return 'Clínica Integral Adulto y Gerontología';
+        }
+    }
+    
+    /**
+     * 📝 Crea requerimiento del paciente en la base de datos
+     */
+    async crearRequerimientoPaciente(paciente, tratamientoDetectado, clinica) {
+        // Parsear días disponibles
+        let diasDisponibles = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
+        if (paciente.dias_disponibles) {
+            try {
+                const diasTexto = paciente.dias_disponibles.toLowerCase();
+                diasDisponibles = this.diasSemana.filter(dia => diasTexto.includes(dia));
+                if (diasDisponibles.length === 0) {
+                    diasDisponibles = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
+                }
+            } catch (error) {
+                console.log('⚠️ Error parseando días disponibles, usando default');
+            }
         }
         
-        // Crear la asignación usando el código del estudiante
-        const [result] = await connection.execute(`
-            INSERT INTO asignaciones (
-                id_paciente, id_estudiante, fecha_asignacion,
-                score_compatibilidad, estado, observaciones_sistema, codigo_acceso,
-                fecha_creacion, fecha_actualizacion
-            ) VALUES (?, ?, NOW(), ?, 'asignado', ?, ?, NOW(), NOW())
-        `, [
-            paciente.id, 
-            estudiante.id, 
-            score,
-            `Match automático - Especialidad: ${especialidadMatch || 'General'} - Tratamiento: ${paciente.tipo_tratamiento_inferido}`,
-            codigoAcceso
+        // Parsear horarios preferidos
+        let horariosPreferidos = {
+            manana: { inicio: '08:00', fin: '13:00' },
+            tarde: { inicio: '14:00', fin: '20:00' }
+        };
+        
+        if (paciente.horario_preferencia) {
+            try {
+                const horarioTexto = paciente.horario_preferencia.toLowerCase();
+                if (horarioTexto.includes('mañana') || horarioTexto.includes('manana')) {
+                    horariosPreferidos = { manana: { inicio: '08:00', fin: '13:00' } };
+                } else if (horarioTexto.includes('tarde')) {
+                    horariosPreferidos = { tarde: { inicio: '14:00', fin: '20:00' } };
+                }
+            } catch (error) {
+                console.log('⚠️ Error parseando horarios preferidos, usando default');
+            }
+        }
+        
+        const query = `
+            INSERT INTO requerimientos_paciente (
+                id_paciente,
+                especialidad_requerida,
+                clinica_preferida,
+                urgencia,
+                dias_disponibles,
+                horarios_preferidos,
+                notas_adicionales
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        const urgencia = this.mapearPrioridadAUrgencia(tratamientoDetectado.prioridad);
+        
+        await this.connection.execute(query, [
+            paciente.id,
+            tratamientoDetectado.especialidad,
+            clinica,
+            urgencia,
+            JSON.stringify(diasDisponibles),
+            JSON.stringify(horariosPreferidos),
+            `Tratamiento detectado: ${tratamientoDetectado.tratamiento} (Confianza: ${tratamientoDetectado.confianza.toFixed(2)})`
         ]);
-
-        // Actualizar el estado del paciente
-        await connection.execute(`
-            UPDATE pacientes 
-            SET estado = 'asignado', 
-                fecha_asignacion = NOW(),
-                estudiante_asignado = ?
-            WHERE id = ?
-        `, [estudiante.id, paciente.id]);
-
-        return {
-            success: true,
-            score: score,
-            pacienteId: paciente.id,
-            estudianteId: estudiante.id,
-            especialidadMatch: especialidadMatch,
-            asignacionId: result.insertId,
-            codigoAcceso: codigoAcceso
+        
+        console.log(`📝 Requerimiento creado: ${tratamientoDetectado.especialidad} en ${clinica}`);
+    }
+    
+    /**
+     * 🔄 Mapea prioridad a urgencia
+     */
+    mapearPrioridadAUrgencia(prioridad) {
+        const mapping = {
+            'urgente': 'urgente',
+            'alta': 'alta',
+            'moderada': 'moderada',
+            'baja': 'baja'
         };
-        
-    } catch (error) {
-        console.error('❌ Error creando match:', error);
-        throw new Error(`Error creando match: ${error.message}`);
-    }
-}
-
-
-// Función para obtener pacientes de un estudiante por código
-async getPacientesPorCodigo(codigoAcceso) {
-    try {
-        const db = await getConnection();
-        
-        const [pacientes] = await db.execute(`
-            SELECT 
-                p.*, 
-                a.id as asignacion_id,
-                a.fecha_asignacion,
-                a.estado as estado_asignacion,
-                a.score_compatibilidad,
-                a.observaciones_estudiante
-            FROM codigos_acceso ca
-            JOIN asignaciones a ON ca.codigo_acceso = a.codigo_acceso
-            JOIN pacientes p ON a.id_paciente = p.id
-            WHERE ca.codigo_acceso = ? 
-                AND ca.activo = TRUE 
-                AND ca.fecha_expiracion > NOW()
-                AND a.estado IN ('asignado', 'contactado', 'en_tratamiento')
-            ORDER BY a.fecha_asignacion DESC
-        `, [codigoAcceso]);
-        
-        return pacientes.map(paciente => ({
-            ...paciente,
-            sintomas_parseados: this.parseSintomasArray(paciente.sintomas_seleccionados)
-        }));
-        
-    } catch (error) {
-        console.error('Error obteniendo pacientes por código:', error);
-        throw new Error(`Error obteniendo pacientes por código: ${error.message}`);
-    }
-}
-
-// Función para validar código de acceso
-async validarCodigoAcceso(codigoAcceso) {
-    try {
-        const db = await getConnection();
-        
-        const [resultado] = await db.execute(`
-            SELECT 
-                ca.*,
-                e.nombre_completo,
-                e.codigo_estudiante,
-                e.año_carrera,
-                e.email
-            FROM codigos_acceso ca
-            JOIN estudiantes_odontologia e ON ca.id_estudiante = e.id
-            WHERE ca.codigo_acceso = ? 
-                AND ca.activo = TRUE 
-                AND ca.fecha_expiracion > NOW()
-        `, [codigoAcceso]);
-        
-        if (resultado.length === 0) {
-            return { valido: false, mensaje: 'Código inválido o expirado' };
-        }
-        
-        // Actualizar último acceso
-        await db.execute(`
-            UPDATE codigos_acceso 
-            SET ultimo_intento = NOW() 
-            WHERE codigo_acceso = ?
-        `, [codigoAcceso]);
-        
-        return {
-            valido: true,
-            estudiante: resultado[0],
-            mensaje: 'Código válido'
-        };
-        
-    } catch (error) {
-        console.error('Error validando código:', error);
-        return { valido: false, mensaje: 'Error del sistema' };
-    }
-}
-async generarCodigoAcceso() {
-    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let codigo;
-    let existe = true;
-    let intentos = 0;
-    const maxIntentos = 100;
-    
-    const db = await getConnection();
-    
-    while (existe && intentos < maxIntentos) {
-        // Generar código formato: AA######AA
-        codigo = '';
-        codigo += caracteres.charAt(Math.floor(Math.random() * 26)); // A-Z
-        codigo += caracteres.charAt(Math.floor(Math.random() * 26)); // A-Z
-        for (let i = 0; i < 6; i++) {
-            codigo += Math.floor(Math.random() * 10); // 0-9
-        }
-        codigo += caracteres.charAt(Math.floor(Math.random() * 26)); // A-Z
-        codigo += caracteres.charAt(Math.floor(Math.random() * 26)); // A-Z
-        
-        // Verificar si ya existe
-        const [rows] = await db.execute(
-            'SELECT codigo_acceso FROM codigos_acceso WHERE codigo_acceso = ?',
-            [codigo]
-        );
-        
-        existe = rows.length > 0;
-        intentos++;
+        return mapping[prioridad] || 'moderada';
     }
     
-    if (intentos >= maxIntentos) {
-        throw new Error('No se pudo generar un código único después de múltiples intentos');
-    }
-    
-    return codigo;
-}
-
-    // ===== MÉTODO LEGACY PARA COMPATIBILIDAD =====
-    async createMatch(paciente, estudiante) {
-        let connection = null;
+    /**
+     * 🎯 ALGORITMO DE MATCHING ÓPTIMO
+     * Encuentra el mejor estudiante disponible considerando múltiples factores
+     */
+    async encontrarMatchingOptimo(paciente, tratamientoDetectado, clinica) {
+        console.log(`🔍 Buscando matching óptimo para ${tratamientoDetectado.especialidad} en ${clinica}`);
         
-        try {
-            const db = await getConnection();
-            connection = await db.getConnection();
-            await connection.beginTransaction();
-            
-            const result = await this.createMatchWithConnection(connection, paciente, estudiante);
-            
-            await connection.commit();
-            return result;
-            
-        } catch (error) {
-            if (connection) {
-                try {
-                    await connection.rollback();
-                } catch (rollbackError) {
-                    console.error('❌ Error en rollback:', rollbackError);
-                }
-            }
-            throw error;
-        } finally {
-            if (connection) {
-                connection.release();
-            }
-        }
-    }
-
-    // ===== MÉTODOS DE ESTADÍSTICAS (SIN CAMBIOS SIGNIFICATIVOS) =====
-    async getMatchingStats() {
-    try {
-        const db = await getConnection();
+        // Obtener estudiantes disponibles
+        const estudiantesDisponibles = await this.getEstudiantesDisponibles(tratamientoDetectado.especialidad, clinica);
+        console.log(`👥 Estudiantes disponibles: ${estudiantesDisponibles.length}`);
         
-        // First, let's verify the column exists
-        const [columns] = await db.execute(`
-            SHOW COLUMNS FROM estudiantes_odontologia LIKE 'casos_necesarios'
-        `);
-        
-        if (columns.length === 0) {
-            console.log('⚠️ Column casos_necesarios not found, using default value of 10');
-        }
-        
-        const [stats] = await db.execute(`
-            SELECT 
-                COUNT(*) as total_asignaciones,
-                COUNT(CASE WHEN observaciones_sistema LIKE '%MANUAL%' THEN 1 END) as manuales,
-                COUNT(CASE WHEN observaciones_sistema NOT LIKE '%MANUAL%' OR observaciones_sistema IS NULL THEN 1 END) as automaticas,
-                AVG(score_compatibilidad) as score_promedio,
-                COUNT(CASE WHEN DATE(fecha_asignacion) = CURDATE() THEN 1 END) as hoy
-            FROM asignaciones
-            WHERE estado IN ('asignado', 'en_tratamiento')
-        `);
-
-        const [pendientes] = await db.execute(`
-            SELECT COUNT(*) as pacientes_pendientes
-            FROM pacientes
-            WHERE estado = 'pendiente' AND activo = TRUE
-        `);
-
-        // Fixed query for available students
-        const [disponibles] = await db.execute(`
-            SELECT COUNT(*) as estudiantes_disponibles
-            FROM (
-                SELECT e.id
-                FROM estudiantes_odontologia e
-                LEFT JOIN asignaciones a ON e.id = a.id_estudiante 
-                    AND a.estado IN ('asignado', 'en_tratamiento')
-                WHERE e.estado = 'activo'
-                GROUP BY e.id, e.casos_necesarios
-                HAVING COUNT(a.id) < COALESCE(e.casos_necesarios, 10)
-            ) as disponible_count
-        `);
-
-        return {
-            ...stats[0],
-            pacientes_pendientes: pendientes[0].pacientes_pendientes,
-            estudiantes_disponibles: disponibles[0].estudiantes_disponibles,
-            ultima_actualizacion: new Date().toISOString()
-        };
-        
-    } catch (error) {
-        console.error('❌ Error obteniendo estadísticas de matching:', error);
-        throw new Error(`Error obteniendo estadísticas de matching: ${error.message}`);
-    }
-}
-
-    async undoAutoMatch(asignacionId) {
-        let connection = null;
-        
-        try {
-            const db = await getConnection();
-            connection = await db.getConnection();
-            await connection.beginTransaction();
-            
-            // Verificar que la asignación existe y está en estado asignado
-            const [asignacion] = await connection.execute(`
-                SELECT a.*, p.nombre_completo as paciente_nombre,
-                    e.nombre_completo as estudiante_nombre
-                FROM asignaciones a
-                JOIN pacientes p ON a.id_paciente = p.id
-                JOIN estudiantes_odontologia e ON a.id_estudiante = e.id
-                WHERE a.id = ? AND a.estado = 'asignado'
-            `, [asignacionId]);
-            
-            if (asignacion.length === 0) {
-                throw new Error('Asignación no encontrada o no está en estado asignado');
-            }
-            
-            const match = asignacion[0];
-            
-            // Actualizar el estado del paciente a pendiente
-            await connection.execute(`
-                UPDATE pacientes 
-                SET estado = 'pendiente', 
-                    fecha_asignacion = NULL,
-                    estudiante_asignado = NULL
-                WHERE id = ?
-            `, [match.id_paciente]);
-            
-            // Marcar la asignación como cancelada
-            await connection.execute(`
-                UPDATE asignaciones 
-                SET estado = 'cancelado', 
-                    fecha_actualizacion = NOW(),
-                    motivo_cancelacion = 'Cancelado manualmente por administrador',
-                    observaciones_sistema = CONCAT(
-                        COALESCE(observaciones_sistema, ''), 
-                        ' - Cancelado manualmente el ', 
-                        NOW()
-                    )
-                WHERE id = ?
-            `, [asignacionId]);
-            
-            await connection.commit();
-            
-            console.log(`✅ Match deshecho exitosamente: ${match.paciente_nombre} ↔ ${match.estudiante_nombre}`);
-            
-            return {
-                success: true,
-                message: 'Asignación deshecha exitosamente',
-                data: {
-                    asignacionId: asignacionId,
-                    paciente: match.paciente_nombre,
-                    estudiante: match.estudiante_nombre
-                }
-            };
-            
-        } catch (error) {
-            if (connection) {
-                try {
-                    await connection.rollback();
-                    console.log('🔄 Rollback ejecutado correctamente');
-                } catch (rollbackError) {
-                    console.error('❌ Error en rollback:', rollbackError.message);
-                }
-            }
-            
-            console.error('❌ Error deshaciendo match automático:', error);
+        if (estudiantesDisponibles.length === 0) {
             return {
                 success: false,
-                error: error.message,
-                message: 'Error al deshacer la asignación'
+                reason: `No hay estudiantes disponibles para ${tratamientoDetectado.especialidad} en ${clinica}`
             };
-        } finally {
-            if (connection) {
-                connection.release();
+        }
+        
+        let mejorMatch = null;
+        let mejorScore = 0;
+        
+        for (const estudiante of estudiantesDisponibles) {
+            // VALIDACIÓN DE HORARIOS SIN SOLAPAMIENTOS
+            const disponibilidadHorarios = await this.verificarDisponibilidadHorarios(
+                estudiante.id_estudiante,
+                estudiante.dia_semana,
+                estudiante.hora_inicio,
+                estudiante.hora_fin
+            );
+            
+            if (!disponibilidadHorarios.disponible) {
+                console.log(`⏰ ${estudiante.nombre_completo} no disponible: ${disponibilidadHorarios.motivo}`);
+                continue;
             }
+            
+            // CÁLCULO DE SCORE DE MATCHING
+            const score = this.calcularScoreMatching(paciente, estudiante, tratamientoDetectado);
+            
+            if (score > mejorScore) {
+                mejorScore = score;
+                mejorMatch = {
+                    success: true,
+                    estudiante: estudiante,
+                    especialidad: tratamientoDetectado.especialidad,
+                    tratamiento: tratamientoDetectado.tratamiento,
+                    clinica: clinica,
+                    dia_semana: estudiante.dia_semana,
+                    hora_inicio: estudiante.hora_inicio,
+                    hora_fin: estudiante.hora_fin,
+                    fecha_asignacion: this.calcularProximaFecha(estudiante.dia_semana),
+                    score: score,
+                    disponibilidad: disponibilidadHorarios
+                };
+            }
+        }
+        
+        if (!mejorMatch) {
+            return {
+                success: false,
+                reason: 'No hay horarios disponibles para los estudiantes encontrados'
+            };
+        }
+        
+        console.log(`✅ Mejor match: ${mejorMatch.estudiante.nombre_completo} (Score: ${mejorScore.toFixed(2)})`);
+        return mejorMatch;
+    }
+    
+    /**
+     * 👥 Obtiene estudiantes disponibles para una especialidad y clínica específica
+     */
+    async getEstudiantesDisponibles(especialidad, clinica) {
+        const query = `
+            SELECT 
+                e.id as id_estudiante,
+                e.nombre_completo,
+                e.año_carrera,
+                e.telefono,
+                e.email,
+                e.casos_activos,
+                e.casos_completados,
+                ee.id as id_especialidad_estudiante,
+                ee.especialidad,
+                ee.clinica,
+                ee.dia_semana,
+                ee.hora_inicio,
+                ee.hora_fin,
+                ee.capacidad_pacientes
+            FROM estudiantes_odontologia e
+            INNER JOIN especialidades_estudiante ee ON e.id = ee.id_estudiante
+            WHERE e.estado = 'activo'
+                AND ee.activo = TRUE
+                AND ee.especialidad = ?
+                AND ee.clinica = ?
+                AND e.casos_activos < e.casos_necesarios
+            ORDER BY 
+                e.casos_activos ASC,
+                ee.dia_semana ASC,
+                ee.hora_inicio ASC
+        `;
+        
+        const [rows] = await this.connection.execute(query, [especialidad, clinica]);
+        return rows;
+    }
+    
+    /**
+     * ⏰ VALIDACIÓN DE HORARIOS SIN SOLAPAMIENTOS
+     * Verifica que no hay conflictos de horarios
+     */
+    async verificarDisponibilidadHorarios(idEstudiante, diaSemana, horaInicio, horaFin) {
+        const fechaAsignacion = this.calcularProximaFecha(diaSemana);
+        
+        // Verificar solapamientos en asignaciones_horario
+        const queryAsignaciones = `
+            SELECT COUNT(*) as conflictos
+            FROM asignaciones_horario ah
+            WHERE ah.id_estudiante = ?
+                AND ah.dia_semana = ?
+                AND ah.fecha_asignacion = ?
+                AND ah.estado IN ('programada', 'confirmada', 'en_progreso')
+                AND (
+                    (ah.hora_inicio < ? AND ah.hora_fin > ?) OR
+                    (ah.hora_inicio < ? AND ah.hora_fin > ?) OR
+                    (ah.hora_inicio >= ? AND ah.hora_fin <= ?)
+                )
+        `;
+        
+        const [conflictos] = await this.connection.execute(queryAsignaciones, [
+            idEstudiante, diaSemana, fechaAsignacion,
+            horaFin, horaInicio,    // Overlap case 1
+            horaInicio, horaInicio, // Overlap case 2
+            horaInicio, horaFin     // Overlap case 3
+        ]);
+        
+        const tieneConflictos = conflictos[0].conflictos > 0;
+        
+        // Verificar capacidad
+        let tieneCapacidad = true;
+        let capacidadDisponible = 1;
+        
+        const queryCapacidad = `
+            SELECT 
+                de.capacidad_total,
+                de.pacientes_asignados,
+                de.disponible
+            FROM disponibilidad_estudiante de
+            WHERE de.id_estudiante = ?
+                AND de.fecha = ?
+                AND de.dia_semana = ?
+                AND de.hora_inicio = ?
+        `;
+        
+        const [capacidad] = await this.connection.execute(queryCapacidad, [
+            idEstudiante, fechaAsignacion, diaSemana, horaInicio
+        ]);
+        
+        if (capacidad.length > 0) {
+            tieneCapacidad = capacidad[0].disponible === 1;
+            capacidadDisponible = capacidad[0].capacidad_total - capacidad[0].pacientes_asignados;
+        }
+        
+        const disponible = !tieneConflictos && tieneCapacidad && capacidadDisponible > 0;
+        
+        return {
+            disponible: disponible,
+            conflictos: tieneConflictos,
+            capacidadDisponible: capacidadDisponible,
+            motivo: !disponible ? 
+                (tieneConflictos ? 'Conflicto de horarios' : 
+                 !tieneCapacidad ? 'Sin capacidad disponible' : 'Capacidad agotada') : 
+                'Disponible'
+        };
+    }
+    
+    /**
+     * 📊 SISTEMA DE SCORING AVANZADO
+     * Calcula el score óptimo considerando múltiples factores
+     */
+    calcularScoreMatching(paciente, estudiante, tratamientoDetectado) {
+        let score = 0;
+        
+        // Factor 1: Compatibilidad de tratamiento con año de carrera (40%)
+        const compatibilidadTratamiento = this.complejidadPorAno[tratamientoDetectado.tratamiento]?.[estudiante.año_carrera] || 0.5;
+        score += compatibilidadTratamiento * 0.4;
+        
+        // Factor 2: Carga de trabajo del estudiante (30%)
+        const factorCarga = 1 - (estudiante.casos_activos / (estudiante.casos_necesarios || 10));
+        score += Math.max(0, factorCarga) * 0.3;
+        
+        // Factor 3: Urgencia del paciente (20%)
+        const urgenciaScore = {
+            'urgente': 1.0,
+            'alta': 0.8,
+            'moderada': 0.6,
+            'baja': 0.4
+        };
+        score += (urgenciaScore[tratamientoDetectado.prioridad] || 0.6) * 0.2;
+        
+        // Factor 4: Nivel de dolor del paciente (10%)
+        if (paciente.nivel_dolor) {
+            const dolorScore = paciente.nivel_dolor / 10;
+            score += dolorScore * 0.1;
+        } else {
+            score += 0.05;
+        }
+        
+        return Math.min(1.0, Math.max(0, score));
+    }
+    
+    /**
+     * 📅 Calcula la próxima fecha para un día específico
+     */
+    calcularProximaFecha(diaSemana) {
+        const hoy = new Date();
+        const diasMap = {
+            'lunes': 1, 'martes': 2, 'miercoles': 3, 'jueves': 4, 'viernes': 5, 'sabado': 6, 'domingo': 0
+        };
+        
+        const targetDay = diasMap[diaSemana];
+        const currentDay = hoy.getDay();
+        
+        let daysToAdd = targetDay - currentDay;
+        if (daysToAdd <= 0) {
+            daysToAdd += 7; // Siguiente semana
+        }
+        
+        const fechaAsignacion = new Date(hoy);
+        fechaAsignacion.setDate(hoy.getDate() + daysToAdd);
+        
+        return fechaAsignacion.toISOString().split('T')[0];
+    }
+    
+    /**
+     * 💾 Crea asignación por horario específico en la base de datos
+     */
+    async crearAsignacionHorario(paciente, matchingResult) {
+        const query = `
+            INSERT INTO asignaciones_horario (
+                id_estudiante,
+                id_paciente,
+                id_especialidad_estudiante,
+                id_requerimiento_paciente,
+                especialidad,
+                clinica,
+                dia_semana,
+                hora_inicio,
+                hora_fin,
+                fecha_asignacion,
+                estado,
+                score_matching,
+                notas
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        // Obtener ID del requerimiento del paciente
+        const [requerimiento] = await this.connection.execute(
+            'SELECT id FROM requerimientos_paciente WHERE id_paciente = ? AND activo = TRUE LIMIT 1',
+            [paciente.id]
+        );
+        
+        const idRequerimiento = requerimiento[0]?.id;
+        if (!idRequerimiento) {
+            throw new Error('No se encontró requerimiento del paciente');
+        }
+        
+        await this.connection.execute(query, [
+            matchingResult.estudiante.id_estudiante,
+            paciente.id,
+            matchingResult.estudiante.id_especialidad_estudiante,
+            idRequerimiento,
+            matchingResult.especialidad,
+            matchingResult.clinica,
+            matchingResult.dia_semana,
+            matchingResult.hora_inicio,
+            matchingResult.hora_fin,
+            matchingResult.fecha_asignacion,
+            'programada',
+            matchingResult.score,
+            `Matching automático - Tratamiento: ${matchingResult.tratamiento}`
+        ]);
+        
+        // Crear en tabla legacy para compatibilidad
+        await this.crearAsignacionLegacy(paciente, matchingResult);
+    }
+    
+    /**
+     * 🔄 Crea asignación en tabla legacy para compatibilidad
+     */
+    async crearAsignacionLegacy(paciente, matchingResult) {
+        const query = `
+            INSERT INTO asignaciones (
+                id_paciente,
+                id_estudiante,
+                codigo_acceso,
+                fecha_asignacion,
+                estado,
+                algoritmo_version
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        
+        const [codigo] = await this.connection.execute(
+            'SELECT codigo_acceso FROM codigos_acceso WHERE id_estudiante = ? AND activo = TRUE LIMIT 1',
+            [matchingResult.estudiante.id_estudiante]
+        );
+        
+        const codigoAcceso = codigo[0]?.codigo_acceso || 'TEMP001';
+        
+        await this.connection.execute(query, [
+            paciente.id,
+            matchingResult.estudiante.id_estudiante,
+            codigoAcceso,
+            new Date(),
+            'asignado',
+            '2.0'
+        ]);
+    }
+    
+    /**
+     * ⚡ Actualiza disponibilidad del estudiante en tiempo real
+     */
+    async actualizarDisponibilidad(matchingResult) {
+        const query = `
+            INSERT INTO disponibilidad_estudiante (
+                id_estudiante,
+                fecha,
+                dia_semana,
+                hora_inicio,
+                hora_fin,
+                especialidad,
+                clinica,
+                capacidad_total,
+                pacientes_asignados
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON DUPLICATE KEY UPDATE
+                pacientes_asignados = pacientes_asignados + 1
+        `;
+        
+        await this.connection.execute(query, [
+            matchingResult.estudiante.id_estudiante,
+            matchingResult.fecha_asignacion,
+            matchingResult.dia_semana,
+            matchingResult.hora_inicio,
+            matchingResult.hora_fin,
+            matchingResult.especialidad,
+            matchingResult.clinica,
+            matchingResult.estudiante.capacidad_pacientes || 1
+        ]);
+        
+        // Actualizar casos activos del estudiante
+        await this.connection.execute(
+            'UPDATE estudiantes_odontologia SET casos_activos = casos_activos + 1 WHERE id = ?',
+            [matchingResult.estudiante.id_estudiante]
+        );
+    }
+    
+    /**
+     * 📧 NOTIFICACIONES PERSONALIZADAS ESPECÍFICAS
+     * Envía mensajes exactos como "Ana se ha asignado a tu clase de 8:00 a 13:00 del día lunes"
+     */
+    async enviarNotificacionesAsignacion(paciente, matchingResult) {
+        try {
+            const fechaFormateada = new Date(matchingResult.fecha_asignacion).toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            // NOTIFICACIÓN AL ESTUDIANTE (formato específico solicitado)
+            const mensajeEstudiante = `${paciente.nombre_completo} se ha asignado a tu clase de ${matchingResult.hora_inicio} a ${matchingResult.hora_fin} del día ${matchingResult.dia_semana} (${fechaFormateada}) en ${matchingResult.clinica}. Tratamiento: ${matchingResult.tratamiento}`;
+            
+            await autoNotificationService.crearNotificacion({
+                id_estudiante: matchingResult.estudiante.id_estudiante,
+                email_destino: matchingResult.estudiante.email,
+                tipo_notificacion: 'nuevo_paciente',
+                asunto: 'Nueva Asignación de Paciente',
+                mensaje: mensajeEstudiante,
+                id_referencia: paciente.id,
+                tipo_referencia: 'asignacion'
+            });
+            
+            // NOTIFICACIÓN AL PACIENTE
+            if (paciente.email) {
+                const mensajePaciente = `Hola ${paciente.nombre_completo}, has sido asignado/a con el estudiante ${matchingResult.estudiante.nombre_completo} para tu tratamiento de ${matchingResult.tratamiento}. Tu cita será el ${matchingResult.dia_semana} de ${matchingResult.hora_inicio} a ${matchingResult.hora_fin} en ${matchingResult.clinica}.`;
+                
+                await autoNotificationService.crearNotificacion({
+                    id_paciente: paciente.id,
+                    email_destino: paciente.email,
+                    tipo_notificacion: 'asignacion_confirmada',
+                    asunto: 'Asignación de Tratamiento Confirmada',
+                    mensaje: mensajePaciente,
+                    id_referencia: matchingResult.estudiante.id_estudiante,
+                    tipo_referencia: 'asignacion'
+                });
+            }
+            
+        } catch (error) {
+            console.error('⚠️ Error enviando notificaciones:', error.message);
         }
     }
-
-    analizarSintomas(sintomas) {
+    
+    /**
+     * 📊 Obtiene estadísticas del sistema de matching
+     */
+    async getStats() {
         try {
-            const sintomasArray = this.parseSintomasArray(sintomas);
-            const especialidadesContador = {};
+            const db = await getConnection();
+            const connection = await db.getConnection();
             
-            for (const sintoma of sintomasArray) {
-                const sintomaLower = sintoma.toLowerCase();
-                const especialidades = this.sintomasAEspecialidades[sintomaLower] || [];
-                
-                for (const especialidad of especialidades) {
-                    especialidadesContador[especialidad] = (especialidadesContador[especialidad] || 0) + 1;
-                }
-            }
+            const [stats] = await connection.execute(`
+                SELECT 
+                    (SELECT COUNT(*) FROM asignaciones_horario WHERE estado = 'programada') as asignaciones_programadas,
+                    (SELECT COUNT(*) FROM asignaciones_horario WHERE estado = 'completada') as asignaciones_completadas,
+                    (SELECT COUNT(*) FROM asignaciones_horario WHERE DATE(fecha_asignacion) = CURDATE()) as asignaciones_hoy,
+                    (SELECT COUNT(*) FROM pacientes WHERE activo = TRUE) as pacientes_activos,
+                    (SELECT COUNT(*) FROM estudiantes_odontologia WHERE estado = 'activo') as estudiantes_activos,
+                    (SELECT COUNT(*) FROM especialidades_estudiante WHERE activo = TRUE) as especialidades_disponibles,
+                    (SELECT AVG(score_matching) FROM asignaciones_horario WHERE score_matching > 0) as score_promedio
+            `);
             
-            let mejorEspecialidad = null;
-            let maxCount = 0;
-            
-            for (const [especialidad, count] of Object.entries(especialidadesContador)) {
-                if (count > maxCount) {
-                    maxCount = count;
-                    mejorEspecialidad = especialidad;
-                }
-            }
+            connection.release();
             
             return {
-                tratamientoSugerido: mejorEspecialidad || 'Destartraje y Pulido Coronario',
-                confianza: sintomasArray.length > 0 ? maxCount / sintomasArray.length : 0,
-                especialidadesDetectadas: especialidadesContador
+                totalMatches: stats[0].asignaciones_programadas + stats[0].asignaciones_completadas,
+                asignacionesProgramadas: stats[0].asignaciones_programadas,
+                asignacionesCompletadas: stats[0].asignaciones_completadas,
+                asignacionesHoy: stats[0].asignaciones_hoy,
+                pacientesActivos: stats[0].pacientes_activos,
+                estudiantesActivos: stats[0].estudiantes_activos,
+                especialidadesDisponibles: stats[0].especialidades_disponibles,
+                scorePromedio: parseFloat(stats[0].score_promedio || 0).toFixed(2),
+                successRate: stats[0].asignaciones_completadas > 0 ? 
+                    ((stats[0].asignaciones_completadas / (stats[0].asignaciones_programadas + stats[0].asignaciones_completadas)) * 100).toFixed(1) : 0
             };
         } catch (error) {
-            console.error('❌ Error analizando síntomas:', error);
+            console.error('Error obteniendo estadísticas:', error);
             return {
-                tratamientoSugerido: 'Destartraje y Pulido Coronario',
-                confianza: 0,
-                especialidadesDetectadas: {}
+                totalMatches: 0,
+                successRate: 0,
+                error: error.message
             };
         }
+    }
+    
+    // ===== MANTENER COMPATIBILIDAD CON MÉTODO LEGACY =====
+    async executeAutoMatching() {
+        console.log('🔄 Redirigiendo a executeAdvancedMatching...');
+        return await this.executeAdvancedMatching();
     }
 }
 
-module.exports = new MatchingService();
+module.exports = new AdvancedMatchingService();

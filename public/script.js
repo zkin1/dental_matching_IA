@@ -3152,3 +3152,367 @@ async function marcarComoContactado(asignacionId) {
         showErrorMessage('Error al marcar como contactada');
     }
 }
+
+// ====================================
+//   FUNCIONES PARA FORMULARIOS DE MÚLTIPLES PASOS
+// ====================================
+
+// Función para navegar al siguiente paso
+function nextStep(stepNumber) {
+    // Ocultar paso actual
+    const currentStep = document.querySelector('.form-step.active');
+    if (currentStep) {
+        currentStep.classList.remove('active');
+    }
+    
+    // Mostrar siguiente paso
+    const nextStep = document.querySelector(`[data-step="${stepNumber}"]`);
+    if (nextStep) {
+        nextStep.classList.add('active');
+    }
+}
+
+// Función para navegar al paso anterior
+function prevStep(stepNumber) {
+    // Ocultar paso actual
+    const currentStep = document.querySelector('.form-step.active');
+    if (currentStep) {
+        currentStep.classList.remove('active');
+    }
+    
+    // Mostrar paso anterior
+    const prevStep = document.querySelector(`[data-step="${stepNumber}"]`);
+    if (prevStep) {
+        prevStep.classList.add('active');
+    }
+}
+
+// Función para cerrar modal de agregar paciente
+function closeAddPatientModal() {
+    const modal = document.getElementById('addPatientModal');
+    if (modal) {
+        modal.style.display = 'none';
+        // Resetear formulario
+        document.getElementById('addPatientForm').reset();
+        // Volver al primer paso
+        const firstStep = document.querySelector('[data-step="1"]');
+        if (firstStep) {
+            document.querySelectorAll('.form-step').forEach(step => step.classList.remove('active'));
+            firstStep.classList.add('active');
+        }
+    }
+}
+
+// Función para cerrar modal de agregar estudiante
+function closeAddStudentModal() {
+    const modal = document.getElementById('addStudentModal');
+    if (modal) {
+        modal.style.display = 'none';
+        // Resetear formulario
+        document.getElementById('addStudentForm').reset();
+        // Volver al primer paso
+        const firstStep = document.querySelector('[data-step="1"]');
+        if (firstStep) {
+            document.querySelectorAll('.form-step').forEach(step => step.classList.remove('active'));
+            firstStep.classList.add('active');
+        }
+    }
+}
+
+// Función para manejar el envío del formulario de paciente
+async function handlePatientFormSubmit(event) {
+    event.preventDefault();
+    
+    try {
+        showLoadingOverlay('Guardando paciente...', 'Procesando información del paciente');
+        
+        const formData = new FormData(event.target);
+        const patientData = {
+            nombre_completo: formData.get('nombre_completo'),
+            edad: formData.get('edad') ? parseInt(formData.get('edad')) : null,
+            telefono: formData.get('telefono'),
+            email: formData.get('email') || null,
+            ciudad: formData.get('ciudad'),
+            sintomas_seleccionados: Array.from(formData.getAll('sintomas[]')),
+            diagnostico_previo: formData.get('diagnostico_previo') || null,
+            tiempo_problema: formData.get('tiempo_problema') || null,
+            nivel_dolor: parseInt(formData.get('nivel_dolor')),
+            dias_disponibles: Array.from(formData.getAll('dias[]')).join(', '),
+            horario_preferencia: formData.get('horario_preferencia') || null,
+            disponibilidad_cita: formData.get('disponibilidad_cita') || null,
+            prioridad: formData.get('prioridad'),
+            estado: 'pendiente'
+        };
+        
+        // Determinar tipo de tratamiento basado en síntomas
+        patientData.tipo_tratamiento_inferido = inferTreatmentType(patientData.sintomas_seleccionados);
+        patientData.complejidad = inferComplexity(patientData.sintomas_seleccionados, patientData.nivel_dolor);
+        
+        const response = await fetch('/api/pacientes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(patientData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            hideLoadingOverlay();
+            showToast('Paciente agregado exitosamente', 'success');
+            closeAddPatientModal();
+            
+            // Recargar lista de pacientes
+            await loadPatients();
+            
+            // Actualizar contadores del dashboard
+            await updateDashboardCounts();
+        } else {
+            throw new Error(result.message || 'Error al agregar paciente');
+        }
+        
+    } catch (error) {
+        hideLoadingOverlay();
+        console.error('Error agregando paciente:', error);
+        showToast('Error al agregar paciente: ' + error.message, 'error');
+    }
+}
+
+// Función para manejar el envío del formulario de estudiante
+async function handleStudentFormSubmit(event) {
+    event.preventDefault();
+    
+    try {
+        showLoadingOverlay('Guardando estudiante...', 'Procesando información del estudiante');
+        
+        const formData = new FormData(event.target);
+        const studentData = {
+            nombre_completo: formData.get('nombre_completo'),
+            email: formData.get('email'),
+            telefono: formData.get('telefono') || null,
+            ciudad: formData.get('ciudad'),
+            año_carrera: formData.get('año_carrera'),
+            universidad: formData.get('universidad') || null,
+            casos_necesarios: formData.get('casos_necesarios') ? parseInt(formData.get('casos_necesarios')) : null,
+            especialidades: Array.from(formData.getAll('especialidades[]')),
+            dias_disponibles: Array.from(formData.getAll('dias_disponibles[]')),
+            horarios_disponibles: Array.from(formData.getAll('horarios_disponibles[]')),
+            estado: 'activo'
+        };
+        
+        const response = await fetch('/api/estudiantes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(studentData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            hideLoadingOverlay();
+            showToast('Estudiante agregado exitosamente', 'success');
+            closeAddStudentModal();
+            
+            // Recargar lista de estudiantes
+            await loadEstudiantes();
+            
+            // Actualizar contadores del dashboard
+            await updateDashboardCounts();
+        } else {
+            throw new Error(result.message || 'Error al agregar estudiante');
+        }
+        
+    } catch (error) {
+        hideLoadingOverlay();
+        console.error('Error agregando estudiante:', error);
+        showToast('Error al agregar estudiante: ' + error.message, 'error');
+    }
+}
+
+// Función para inferir el tipo de tratamiento basado en síntomas
+function inferTreatmentType(symptoms) {
+    const symptomMap = {
+        'Endodoncia': ['Dolor de muelas', 'Dolor al masticar', 'Sensibilidad dental'],
+        'Periodoncia': ['Inflamación de encías', 'Dientes flojos', 'Sangrado'],
+        'Operatoria Dental': ['Diente roto', 'Caries', 'Mal aliento'],
+        'Odontopediatría': ['Dolor de muelas', 'Miedo al dentista'],
+        'Prostodoncia': ['Diente perdido', 'Dificultad para comer']
+    };
+    
+    for (const [treatment, relatedSymptoms] of Object.entries(symptomMap)) {
+        if (relatedSymptoms.some(symptom => symptoms.includes(symptom))) {
+            return treatment;
+        }
+    }
+    
+    return 'Operatoria Dental'; // Tratamiento por defecto
+}
+
+// Función para inferir la complejidad basada en síntomas y nivel de dolor
+function inferComplexity(symptoms, painLevel) {
+    if (painLevel >= 8 || symptoms.includes('Diente roto') || symptoms.includes('Dientes flojos')) {
+        return 'Avanzado';
+    } else if (painLevel >= 5 || symptoms.length > 3) {
+        return 'Intermedio';
+    } else {
+        return 'Básico';
+    }
+}
+
+// ====================================
+//   INICIALIZACIÓN DE FORMULARIOS
+// ====================================
+
+// Agregar event listeners cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    // Formulario de paciente
+    const patientForm = document.getElementById('addPatientForm');
+    if (patientForm) {
+        patientForm.addEventListener('submit', handlePatientFormSubmit);
+    }
+    
+    // Formulario de estudiante
+    const studentForm = document.getElementById('addStudentForm');
+    if (studentForm) {
+        studentForm.addEventListener('submit', handleStudentFormSubmit);
+    }
+    
+    // Botón para agregar paciente
+    const addPatientBtn = document.getElementById('addPatientBtn');
+    if (addPatientBtn) {
+        addPatientBtn.addEventListener('click', () => {
+            const modal = document.getElementById('addPatientModal');
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        });
+    }
+    
+    // Botón para agregar estudiante
+    const addStudentBtn = document.getElementById('addStudentBtn');
+    if (addStudentBtn) {
+        addStudentBtn.addEventListener('click', () => {
+            const modal = document.getElementById('addStudentModal');
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        });
+    }
+    
+    // Escala de dolor en tiempo real
+    const painLevelInput = document.getElementById('patientPainLevel');
+    const painValue = document.getElementById('painValue');
+    if (painLevelInput && painValue) {
+        painLevelInput.addEventListener('input', (e) => {
+            painValue.textContent = e.target.value;
+        });
+    }
+});
+
+// ====================================
+//   MEJORAS EN LA INTERFAZ
+// ====================================
+
+// Función para mostrar loading overlay
+function showLoadingOverlay(title = 'Procesando...', message = 'Por favor espere mientras se procesa la operación.') {
+    const overlay = document.getElementById('loadingOverlay');
+    const titleEl = document.getElementById('loadingTitle');
+    const messageEl = document.getElementById('loadingMessage');
+    
+    if (overlay && titleEl && messageEl) {
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        overlay.style.display = 'flex';
+    }
+}
+
+// Función para ocultar loading overlay
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// Función para mostrar toast notifications
+function showToast(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <i class="fas fa-${getToastIcon(type)}"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto-remover después del tiempo especificado
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, duration);
+    
+    // Permitir cerrar manualmente
+    toast.addEventListener('click', () => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    });
+}
+
+// Función para obtener el ícono del toast según el tipo
+function getToastIcon(type) {
+    const icons = {
+        success: 'check-circle',
+        error: 'exclamation-circle',
+        warning: 'exclamation-triangle',
+        info: 'info-circle'
+    };
+    return icons[type] || 'info-circle';
+}
+
+// Función para actualizar contadores del dashboard
+async function updateDashboardCounts() {
+    try {
+        // Actualizar contador de pacientes
+        const patientsResponse = await fetch('/api/pacientes');
+        if (patientsResponse.ok) {
+            const patientsData = await patientsResponse.json();
+            const totalPatientsEl = document.getElementById('totalPatients');
+            if (totalPatientsEl) {
+                totalPatientsEl.textContent = patientsData.total || 0;
+            }
+        }
+        
+        // Actualizar contador de estudiantes
+        const studentsResponse = await fetch('/api/estudiantes');
+        if (studentsResponse.ok) {
+            const studentsData = await studentsResponse.json();
+            const totalStudentsEl = document.getElementById('totalStudents');
+            if (totalStudentsEl) {
+                totalStudentsEl.textContent = studentsData.total || 0;
+            }
+        }
+        
+        // Actualizar contador de asignaciones
+        const assignmentsResponse = await fetch('/api/asignaciones');
+        if (assignmentsResponse.ok) {
+            const assignmentsData = await assignmentsResponse.json();
+            const totalMatchesEl = document.getElementById('totalMatches');
+            if (totalMatchesEl) {
+                totalMatchesEl.textContent = assignmentsData.total || 0;
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error actualizando contadores del dashboard:', error);
+    }
+}
