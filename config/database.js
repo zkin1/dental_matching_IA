@@ -1,139 +1,424 @@
+/**
+ * DENTAL MATCHING - UNIFIED DATABASE SERVICE
+ * Configuración única y simple para toda la aplicación
+ * 
+ * ESTE ES EL ÚNICO ARCHIVO DE BASE DE DATOS QUE NECESITAS
+ * Todas las rutas (legacy y modernas) usan este servicio
+ */
+
 const mysql = require('mysql2/promise');
-require('dotenv').config();
 
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'dental_matching',
-  port: parseInt(process.env.DB_PORT) || 3306,
-  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
-  acquireTimeout: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 60000,
-  timeout: parseInt(process.env.DB_TIMEOUT) || 60000,
-  // Configuraciones de seguridad y optimización
-  reconnect: true,
-  charset: 'utf8mb4',
-  timezone: 'local',
-  // Configuraciones adicionales de seguridad
-  ssl: process.env.DB_SSL === 'true' ? {
-    rejectUnauthorized: false
-  } : false,
-  // Configuraciones de rendimiento
-  multipleStatements: false, // Prevenir SQL injection
-  dateStrings: true,
-  // Configuraciones de conexión
-  waitForConnections: true,
-  queueLimit: 0,
-  // Configuraciones de timeout
-  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
-  // Configuraciones de debug (solo en desarrollo)
-  debug: process.env.NODE_ENV === 'development' ? ['ComQueryPacket'] : false
-};
+// Aplicar patch de logger para producción
+require('../src/shared/utils/productionLogger');
 
-let pool;
+// Usar logger enterprise si está disponible
+let logger;
+try {
+  logger = require('../src/infrastructure/logging/logger');
+} catch (error) {
+  logger = {
+    info: (...args) => console.log('[DB]', ...args),
+    error: (...args) => console.error('[DB]', ...args),
+    warn: (...args) => console.warn('[DB]', ...args),
+    debug: (...args) => process.env.NODE_ENV === 'development' && console.log('[DB]', ...args)
+  };
+}
 
-const getConnection = async () => {
-  try {
-    if (!pool) {
-      pool = mysql.createPool(dbConfig);
-      console.log('✅ Pool de conexiones MySQL creado');
-    }
-    return pool;
-  } catch (error) {
-    console.error('❌ Error creando pool MySQL:', error);
-    throw error;
+class DatabaseService {
+  constructor() {
+    this.pool = null;
+    this.isInitialized = false;
+    this.healthMetrics = {
+      connections: 0,
+      queries: 0,
+      errors: 0,
+      slowQueries: 0,
+      lastHealthCheck: null
+    };
   }
-};
 
-// Función para obtener una conexión individual del pool
-const getPoolConnection = async () => {
-  try {
-    if (!pool) {
-      pool = mysql.createPool(dbConfig);
-    }
-    const connection = await pool.getConnection();
-    console.log('✅ Conexión individual obtenida del pool');
-    return connection;
-  } catch (error) {
-    console.error('❌ Error obteniendo conexión del pool:', error);
-    throw error;
+  /**
+   * Configuración de base de datos
+   */
+  getConfig() {
+    return {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT) || 3306,
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'dental_matching',
+      connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 20,
+      charset: 'utf8mb4',
+      timezone: 'Z',
+      multipleStatements: false,
+      dateStrings: true,
+      namedPlaceholders: true,
+      ssl: process.env.DB_SSL === 'true' ? {
+        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false'
+      } : false
+    };
   }
-};
 
-// Función para ejecutar queries directamente con el pool
-const executeQuery = async (query, params = []) => {
-  try {
-    if (!pool) {
-      pool = mysql.createPool(dbConfig);
+  /**
+   * Inicializar servicio de base de datos
+   */
+  async initialize() {
+    if (this.isInitialized) return this.pool;
+
+    try {
+      const config = this.getConfig();
+      
+      logger.info('Initializing database service', {
+        host: config.host,
+        database: config.database,
+        connectionLimit: config.connectionLimit
+      });
+
+      this.pool = mysql.createPool(config);
+
+      // Test connection
+      const connection = await this.pool.getConnection();
+      await connection.ping();
+      connection.release();
+
+      this.isInitialized = true;
+      
+      logger.info('Database service ready', {
+        host: config.host,
+        database: config.database
+      });
+
+      // Start health monitoring
+      this.startHealthMonitoring();
+
+      return this.pool;
+    } catch (error) {
+      logger.error('Database initialization failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * MÉTODO PRINCIPAL: getConnection()
+   * Para compatibilidad con rutas legacy
+   */
+  async getConnection() {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.pool;
+  }
+
+  /**
+   * MÉTODO PRINCIPAL: getPoolConnection()  
+   * Para obtener conexión individual
+   */
+  async getPoolConnection() {
+    if (!this.isInitialized) {
+      await this.initialize();
     }
     
-    // Validar que la query no sea peligrosa
-    if (typeof query !== 'string' || query.trim().length === 0) {
-      throw new Error('Query inválida');
+    try {
+      const connection = await this.pool.getConnection();
+      logger.debug('Individual connection obtained from pool');
+      return connection;
+    } catch (error) {
+      this.healthMetrics.errors++;
+      logger.error('Error obtaining connection from pool', error);
+      throw error;
     }
-    
-    // Prevenir SQL injection básico
-    if (query.toLowerCase().includes('drop') || 
-        query.toLowerCase().includes('delete from') ||
-        query.toLowerCase().includes('truncate') ||
-        query.toLowerCase().includes('alter table')) {
-      throw new Error('Operación no permitida por seguridad');
-    }
-    
-    // Log solo en desarrollo
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 Ejecutando query:', query.substring(0, 100) + '...');
-    }
-    
-    const [rows, fields] = await pool.execute(query, params);
-    return { rows, fields };
-  } catch (error) {
-    console.error('❌ Error ejecutando query:', error.message);
-    throw error;
   }
-};
 
-// Función para probar la conexión
-const testConnection = async () => {
-  try {
-    if (!pool) {
-      pool = mysql.createPool(dbConfig);
+  /**
+   * MÉTODO PRINCIPAL: executeQuery()
+   * Para compatibilidad con rutas legacy
+   */
+  async executeQuery(query, params = []) {
+    return await this.execute(query, params);
+  }
+
+  /**
+   * MÉTODO PRINCIPAL: execute()
+   * Ejecutar queries con monitoreo completo
+   */
+  async execute(query, params = []) {
+    const startTime = Date.now();
+    const queryId = require('crypto').randomUUID().substring(0, 8);
+    
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      if (typeof query !== 'string' || query.trim().length === 0) {
+        throw new Error('Query inválida');
+      }
+
+      // Asegurar que params es array
+      if (!Array.isArray(params)) {
+        params = [];
+      }
+
+      this.healthMetrics.queries++;
+      
+      logger.debug('Executing database query', {
+        queryId,
+        query: query.substring(0, 200),
+        paramCount: params.length
+      });
+
+      // Solo queries parametrizadas para máxima seguridad
+      const [rows, fields] = await this.pool.execute(query, params);
+      const duration = Date.now() - startTime;
+
+      // Log slow queries
+      if (duration > 1000) {
+        this.healthMetrics.slowQueries++;
+        logger.warn('Slow database query detected', {
+          queryId,
+          duration,
+          query: query.substring(0, 500)
+        });
+      }
+
+      logger.debug('Database query completed', {
+        queryId,
+        duration,
+        rowsAffected: rows.affectedRows || rows.length || 0
+      });
+
+      // Retornar en formato compatible con legacy
+      return { rows, fields };
+    } catch (error) {
+      this.healthMetrics.errors++;
+      const duration = Date.now() - startTime;
+      
+      logger.error('Database query failed', {
+        queryId,
+        duration,
+        error: error.message,
+        query: query.substring(0, 500),
+        sqlState: error.sqlState,
+        errno: error.errno
+      });
+      
+      throw error;
     }
-    const [rows] = await pool.execute('SELECT 1 as test');
-    console.log('✅ Conexión a MySQL probada exitosamente');
-    return true;
-  } catch (error) {
-    console.error('❌ Error probando conexión MySQL:', error.message);
-    throw error;
   }
-};
 
-// Función para cerrar el pool correctamente
-const closePool = async () => {
-  if (pool) {
-    await pool.end();
-    console.log('✅ Pool de conexiones MySQL cerrado');
-    pool = null;
+  /**
+   * MÉTODO PRINCIPAL: testConnection()
+   * Para tests de conectividad
+   */
+  async testConnection() {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+      
+      const config = this.getConfig();
+      
+      logger.debug('Testing connection', {
+        host: config.host,
+        user: config.user,
+        database: config.database,
+        port: config.port
+      });
+      
+      const result = await this.execute('SELECT 1 as test, NOW() as current_time');
+      logger.info('Database connection test successful', result.rows[0]);
+      return true;
+    } catch (error) {
+      logger.error('Database connection test failed', {
+        message: error.message,
+        code: error.code,
+        errno: error.errno,
+        sqlState: error.sqlState
+      });
+      throw error;
+    }
   }
-};
 
-// Manejar el cierre graceful de la aplicación
+  /**
+   * Execute transaction
+   */
+  async executeTransaction(operations) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const connection = await this.pool.getConnection();
+    const transactionId = require('crypto').randomUUID().substring(0, 8);
+    
+    try {
+      await connection.beginTransaction();
+      
+      logger.debug('Transaction started', {
+        transactionId,
+        operationCount: operations.length
+      });
+
+      const results = [];
+      for (const operation of operations) {
+        const [result] = await connection.execute(operation.query, operation.params || []);
+        results.push(result);
+      }
+
+      await connection.commit();
+      
+      logger.debug('Transaction committed', {
+        transactionId,
+        operationCount: operations.length
+      });
+
+      return results;
+    } catch (error) {
+      await connection.rollback();
+      
+      logger.error('Transaction rolled back', {
+        transactionId,
+        error: error.message
+      });
+      
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * Get connection pool statistics
+   */
+  getPoolStats() {
+    if (!this.pool) return null;
+
+    return {
+      totalConnections: this.pool.pool.totalConnections,
+      activeConnections: this.pool.pool.activeConnections,
+      idleConnections: this.pool.pool.idleConnections,
+      waitingClients: this.pool.pool.waitingClients,
+      connectionLimit: this.pool.pool.config.connectionLimit
+    };
+  }
+
+  /**
+   * Perform health check
+   */
+  async performHealthCheck() {
+    try {
+      const startTime = Date.now();
+      
+      // Test basic connectivity
+      await this.execute('SELECT 1 as health_check');
+      
+      // Get pool statistics
+      const poolStats = this.getPoolStats();
+      
+      const duration = Date.now() - startTime;
+      this.healthMetrics.lastHealthCheck = new Date();
+
+      const healthData = {
+        status: 'healthy',
+        responseTime: duration,
+        connections: poolStats,
+        metrics: { ...this.healthMetrics }
+      };
+
+      return healthData;
+      
+    } catch (error) {
+      const healthData = {
+        status: 'unhealthy',
+        error: error.message,
+        metrics: { ...this.healthMetrics }
+      };
+      
+      logger.error('Database health check failed', healthData);
+      return healthData;
+    }
+  }
+
+  /**
+   * Start health monitoring
+   */
+  startHealthMonitoring() {
+    // Health check every 5 minutes
+    setInterval(async () => {
+      await this.performHealthCheck();
+    }, 5 * 60 * 1000);
+  }
+
+  /**
+   * MÉTODO PRINCIPAL: closePool()
+   * Para cerrar conexiones
+   */
+  async closePool() {
+    return await this.close();
+  }
+
+  /**
+   * Close database connections
+   */
+  async close() {
+    if (this.pool) {
+      try {
+        await this.pool.end();
+        logger.info('Database connections closed');
+        this.isInitialized = false;
+        this.pool = null;
+      } catch (error) {
+        logger.error('Error closing database connections', error);
+      }
+    }
+  }
+
+  /**
+   * Create database middleware for Express
+   */
+  middleware() {
+    return (req, res, next) => {
+      req.db = this;
+      next();
+    };
+  }
+}
+
+// =====================================
+// SINGLETON INSTANCE - ÚNICA INSTANCIA
+// =====================================
+
+const databaseService = new DatabaseService();
+
+// Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('🔄 Cerrando pool de conexiones...');
-  await closePool();
-  process.exit(0);
+  logger.info('Closing database connections...');
+  await databaseService.close();
 });
 
 process.on('SIGTERM', async () => {
-  console.log('🔄 Cerrando pool de conexiones...');
-  await closePool();
-  process.exit(0);
+  logger.info('Closing database connections...');
+  await databaseService.close();
 });
 
-module.exports = { 
-  getConnection,
-  getPoolConnection,
-  executeQuery,
-  testConnection,
-  closePool
+// ========================================
+// EXPORTAR MÉTODOS - API UNIFICADA
+// ========================================
+
+module.exports = {
+  // API para rutas legacy
+  getConnection: () => databaseService.getConnection(),
+  getPoolConnection: () => databaseService.getPoolConnection(), 
+  executeQuery: (query, params) => databaseService.executeQuery(query, params),
+  testConnection: () => databaseService.testConnection(),
+  closePool: () => databaseService.closePool(),
+  
+  // API enterprise para nuevas funciones
+  execute: (query, params) => databaseService.execute(query, params),
+  executeTransaction: (operations) => databaseService.executeTransaction(operations),
+  performHealthCheck: () => databaseService.performHealthCheck(),
+  getPoolStats: () => databaseService.getPoolStats(),
+  middleware: () => databaseService.middleware(),
+  
+  // Instancia directa para casos avanzados
+  instance: databaseService
 };

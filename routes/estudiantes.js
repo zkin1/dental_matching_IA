@@ -1,13 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { getConnection } = require('../config/database');
+const { getConnection, executeQuery } = require('../config/database');
+const LegacyLoggerAdapter = require('./legacyLoggerAdapter');
+
+// Importar middleware de autenticación
+const { authenticateToken } = require('../src/shared/middleware/auth');
 const studentCodeService = require('../services/studentCodeService');
 
+// Inicializar logger estructurado para esta ruta
+const logger = new LegacyLoggerAdapter('estudiantes');
+
 // GET /api/estudiantes - Obtener todos los estudiantes
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const db = await getConnection();
-    const [rows] = await db.execute(`
+    const result = await executeQuery(`
       SELECT 
         e.id, 
         e.codigo_estudiante, 
@@ -25,12 +31,12 @@ router.get('/', async (req, res) => {
         e.especialidades,
         COALESCE(e.especialidades, 'General') as especialidades_display
       FROM estudiantes_odontologia e
-      WHERE e.estado = 'activo'
+      WHERE e.estado = ?
       ORDER BY e.nombre_completo ASC
-    `);
+    `, ['activo']);
     
     // Procesar los datos para asegurar que tengan valores por defecto
-    const estudiantesProcesados = rows.map(estudiante => ({
+    const estudiantesProcesados = result.rows.map(estudiante => ({
       ...estudiante,
       nombre_completo: estudiante.nombre_completo || 'Sin nombre',
       codigo_estudiante: estudiante.codigo_estudiante || 'N/A',
@@ -42,6 +48,7 @@ router.get('/', async (req, res) => {
     }));
 
     // Verificar y corregir códigos inválidos o faltantes
+    const db = await getConnection();
     for (let estudiante of estudiantesProcesados) {
       if (!studentCodeService.validateCodeFormat(estudiante.codigo_estudiante)) {
         try {
@@ -79,10 +86,9 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/estudiantes/stats - Estadísticas de estudiantes
-router.get('/stats', async (req, res) => {
+router.get('/stats', authenticateToken, async (req, res) => {
   try {
-    const db = await getConnection();
-    const [stats] = await db.execute(`
+    const result = await executeQuery(`
       SELECT 
         COUNT(*) as total_estudiantes,
         COUNT(CASE WHEN estado = 'activo' THEN 1 END) as activos,
@@ -94,7 +100,7 @@ router.get('/stats', async (req, res) => {
     
     res.json({
       success: true,
-      data: stats[0]
+      data: result.rows[0]
     });
   } catch (error) {
     console.error('Error obteniendo estadísticas:', error);
@@ -106,7 +112,7 @@ router.get('/stats', async (req, res) => {
 });
 
 // POST /api/estudiantes - Crear nuevo estudiante con código único
-router.post('/', async (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
   try {
     const { 
       nombre_completo, 
@@ -126,13 +132,11 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const db = await getConnection();
-    
     // Generar código único para el nuevo estudiante
     const codigo_estudiante = await studentCodeService.generateUniqueCode();
     
     // Insertar nuevo estudiante
-    const [result] = await db.execute(`
+    const result = await executeQuery(`
       INSERT INTO estudiantes_odontologia (
         codigo_estudiante, 
         nombre_completo, 
@@ -159,7 +163,7 @@ router.post('/', async (req, res) => {
     ]);
 
     const nuevoEstudiante = {
-      id: result.insertId,
+      id: result.result.insertId,
       codigo_estudiante,
       nombre_completo,
       año_carrera,
@@ -191,7 +195,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/estudiantes/:id - Actualizar estudiante
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { 
@@ -212,15 +216,13 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    const db = await getConnection();
-    
     // Verificar que el estudiante existe
-    const [existingRows] = await db.execute(
+    const existingResult = await executeQuery(
       'SELECT id FROM estudiantes_odontologia WHERE id = ?',
       [id]
     );
 
-    if (existingRows.length === 0) {
+    if (existingResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Estudiante no encontrado'
@@ -228,7 +230,7 @@ router.put('/:id', async (req, res) => {
     }
 
     // Actualizar estudiante
-    await db.execute(`
+    await executeQuery(`
       UPDATE estudiantes_odontologia SET 
         nombre_completo = ?, 
         año_carrera = ?, 

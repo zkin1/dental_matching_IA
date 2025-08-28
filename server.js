@@ -1,388 +1,313 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const compression = require('compression');
+#!/usr/bin/env node
+
+/**
+ * DENTAL MATCHING - SERVIDOR PRINCIPAL UNIFICADO
+ * Version 2.0.0 - Arquitectura Clean con compatibilidad legacy
+ * 
+ * Este servidor unifica:
+ * - Sistema legacy (routes/) para compatibilidad
+ * - Arquitectura Clean (src/) para funcionalidad avanzada
+ * - Servicios enterprise integrados
+ */
+
 require('dotenv').config();
 
-// Importar rutas
-const pacientesRoutes = require('./routes/pacientes');
-const estudiantesRoutes = require('./routes/estudiantes');
-const asignacionesRoutes = require('./routes/asignaciones');
-const matchingRoutes = require('./routes/matching');
-const contactRoutes = require('./routes/contact');
-const studentCodeRoutes = require('./routes/studentCodes');
-const autoNotificationRoutes = require('./routes/autoNotifications');
+// Aplicar patch de logger para producción
+require('./src/shared/utils/productionLogger');
 
-// Importar servicios
-const matchingService = require('./services/matchingService');
-const initService = require('./services/initService');
+// Configurar logging estructurado global
+const GlobalLoggerSetup = require('./src/shared/utils/globalLoggerSetup');
+GlobalLoggerSetup.setupGlobalLogging();
 
-const app = express();
+// Import logger service
+const logger = require('./src/infrastructure/logging/logger');
+
+// Importar aplicación enterprise como principal
+const app = require('./src/app');
+
+// Configuración del servidor
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || 'localhost';
 
-// Variables globales para el estado del sistema
-let systemInitialized = false;
-let initializationError = null;
-
-// Middlewares de seguridad y optimización
-app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'"],
-            fontSrc: ["'self'"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'none'"]
+/**
+ * Función principal para iniciar el servidor unificado
+ */
+async function startServer() {
+    try {
+        // Inicializar servicios enterprise
+        await initializeEnterpriseServices();
+        
+        // Agregar rutas legacy para compatibilidad
+        await setupLegacyCompatibility();
+        
+        // Inicializar y arrancar MatchingScheduler
+        console.log('🤖 Inicializando Sistema de Matching Automático...');
+        const matchingScheduler = require('./services/MatchingScheduler');
+        try {
+            await matchingScheduler.initialize();
+            await matchingScheduler.start();
+            console.log('✅ MatchingScheduler iniciado correctamente');
+        } catch (schedulerError) {
+            console.warn('⚠️  MatchingScheduler falló al iniciar:', schedulerError.message);
         }
-    },
-    hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-    }
-}));
-
-app.use(compression());
-app.use(cors({
-    origin: process.env.NODE_ENV === 'production' 
-        ? [process.env.FRONTEND_URL || 'http://localhost:3000']
-        : true,
-    credentials: true
-}));
-
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 1000, // límite de 1000 requests por ventana por IP
-    message: {
-        error: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde.'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-app.use(limiter);
-
-// Rate limiting más estricto para APIs sensibles
-const strictLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: {
-        error: 'Demasiadas solicitudes a esta API, intenta de nuevo más tarde.'
-    }
-});
-
-// Middlewares básicos
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Servir archivos estáticos
-app.use(express.static('public', {
-    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0
-}));
-
-// Middleware de validación de acceso a API
-function validateApiAccess(req, res, next) {
-    // En desarrollo, permitir todas las requests
-    if (process.env.NODE_ENV === 'development') {
-        return next();
-    }
-    
-    // En producción, validar API key si es necesario
-    const apiKey = req.headers['x-api-key'];
-    if (process.env.API_KEY && apiKey !== process.env.API_KEY) {
-        return res.status(401).json({ 
-            success: false, 
-            error: 'API key requerida o inválida' 
+        
+        // Iniciar servidor HTTP
+        const server = app.listen(PORT, HOST, () => {
+            console.log('\n' + '='.repeat(70));
+            console.log('🦷  DENTAL MATCHING SYSTEM v2.0.0 - MODERN ENTERPRISE');
+            console.log('='.repeat(70));
+            console.log(`🚀 Servidor iniciado en http://${HOST}:${PORT}`);
+            console.log(`📱 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`💡 Health Check: http://${HOST}:${PORT}/api/health`);
+            console.log(`🆕 API Enterprise: http://${HOST}:${PORT}/api/patients`);
+            console.log(`🔄 API Legacy Moderna: http://${HOST}:${PORT}/api/pacientes`);
+            console.log(`📚 Documentación: http://${HOST}:${PORT}/api/docs`);
+            console.log('📊 Arquitectura: Enterprise + Adaptadores Modernos');
+            console.log('⚡ Tecnologías: async/await, express-validator, Winston');
+            console.log('🛡️  Seguridad: JWT, Rate Limiting, CORS, Helmet');
+            console.log('🤖 Matching Automático: Habilitado y Programado');
+            console.log('='.repeat(70) + '\n');
         });
+        
+        // Configurar timeout del servidor
+        server.timeout = parseInt(process.env.SERVER_TIMEOUT) || 30000;
+        
+        // Guardar referencia global para graceful shutdown
+        global.httpServer = server;
+        
+        // Manejar errores del servidor
+        server.on('error', handleServerError);
+        
+    } catch (error) {
+        console.error('❌ Error crítico iniciando servidor:', error);
+        process.exit(1);
     }
-    
-    next();
 }
 
-// Middleware de manejo de errores de base de datos
-function handleDatabaseError(error, req, res, next) {
-    console.error('Error de base de datos:', error);
-    
-    if (error.code === 'ECONNREFUSED') {
-        return res.status(503).json({
-            success: false,
-            error: 'Servicio de base de datos no disponible'
-        });
-    }
-    
-    if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-        return res.status(503).json({
-            success: false,
-            error: 'Error de autenticación con la base de datos'
-        });
-    }
-    
-    res.status(500).json({
-        success: false,
-        error: 'Error interno del servidor'
-    });
-}
-
-// Rutas API
-app.use('/api/pacientes', validateApiAccess, pacientesRoutes);
-app.use('/api/estudiantes', validateApiAccess, estudiantesRoutes);
-app.use('/api/asignaciones', validateApiAccess, asignacionesRoutes);
-app.use('/api/matching', validateApiAccess, matchingRoutes);
-app.use('/api/contact', validateApiAccess, contactRoutes);
-app.use('/api/student-codes', validateApiAccess, studentCodeRoutes);
-app.use('/api/auto-notifications', validateApiAccess, autoNotificationRoutes);
-
-// Ruta principal
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Ruta de testing simplificada
-app.get('/api/test', async (req, res) => {
+/**
+ * Ejecutar migraciones automáticas en startup
+ */
+async function runAutomaticMigrations() {
     try {
-        const systemHealth = await getSystemHealth();
+        console.log('🗄️  Verificando migraciones de base de datos...');
         
-        res.json({
-            success: true,
-            message: 'API funcionando correctamente',
-            timestamp: new Date().toISOString(),
-            version: '0.3.0',
-            system: {
-                initialized: systemInitialized,
-                initError: initializationError,
-                uptime: process.uptime(),
-                memory: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
-            },
-            services: {
-                database: systemHealth.database,
-                matching: true
-            },
-            stats: systemHealth.stats
-        });
-    } catch (error) {
-        console.error('Error en /api/test:', error);
-        res.status(200).json({
-            success: true,
-            message: 'API funcionando correctamente',
-            timestamp: new Date().toISOString(),
-            version: '0.3.0',
-            error: 'Error obteniendo estadísticas detalladas',
-            services: {
-                database: true,
-                matching: true
-            }
-        });
-    }
-});
-
-// Ruta de estadísticas simplificadas
-app.get('/api/stats', async (req, res) => {
-    try {
-        const matchingStats = await matchingService.getStats().catch(err => ({ error: err.message }));
-        
-        res.json({
-            success: true,
-            timestamp: new Date().toISOString(),
-            data: {
-                matching: matchingStats
-            }
-        });
-    } catch (error) {
-        console.error('Error en /api/stats:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Ruta de estadísticas de matching
-app.get('/api/matching-stats', async (req, res) => {
-    try {
-        const stats = await matchingService.getStats();
-        res.json({
-            success: true,
-            data: stats
-        });
-    } catch (error) {
-        console.error('Error obteniendo estadísticas de matching:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Dashboard simplificado
-app.get('/api/dashboard', async (req, res) => {
-    try {
-        const matchingStats = await matchingService.getStats().catch(() => ({ 
-            totalMatches: 0, 
-            successRate: 0, 
-            pendingMatches: 0 
-        }));
-        
-        res.json({
-            success: true,
-            timestamp: new Date().toISOString(),
-            data: {
-                overview: {
-                    totalMatches: matchingStats.totalMatches || 0,
-                    successRate: matchingStats.successRate || 0,
-                    pendingMatches: matchingStats.pendingMatches || 0,
-                    systemStatus: systemInitialized ? 'activo' : 'inicializando'
-                },
-                recentActivity: matchingStats.recentActivity || [],
-                performance: {
-                    uptime: Math.floor(process.uptime()),
-                    memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Error en dashboard:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Health check simplificado
-app.get('/api/health', async (req, res) => {
-    try {
-        const health = await getSystemHealth();
-        
-        const status = health.database ? 'healthy' : 'unhealthy';
-        const httpStatus = health.database ? 200 : 503;
-        
-        res.status(httpStatus).json({
-            success: health.database,
-            status: status,
-            timestamp: new Date().toISOString(),
-            services: {
-                database: health.database,
-                matching: true
-            },
-            stats: health.stats
-        });
-    } catch (error) {
-        console.error('Error en health check:', error);
-        res.status(503).json({
-            success: false,
-            status: 'unhealthy',
-            timestamp: new Date().toISOString(),
-            error: error.message
-        });
-    }
-});
-
-// Función simplificada de health check
-async function getSystemHealth() {
-    const health = {
-        database: false,
-        stats: {
-            dbRecords: 0
-        }
-    };
-    
-    try {
-        // Test básico de base de datos
         const { getConnection } = require('./config/database');
-        const connection = await getConnection();
-        await connection.execute('SELECT 1');
-        health.database = true;
+        const MigrationManager = require('./src/infrastructure/database/migrationManager');
         
-        // Estadísticas básicas
-        const [rows] = await connection.execute(`
-            SELECT 
-                (SELECT COUNT(*) FROM pacientes) as pacientes,
-                (SELECT COUNT(*) FROM estudiantes_odontologia) as estudiantes,
-                (SELECT COUNT(*) FROM asignaciones) as asignaciones
-        `);
+        const db = await getConnection();
+        const migrationManager = new MigrationManager(db);
+        await migrationManager.initialize();
+
+        // Verificar si hay migraciones pendientes
+        const status = await migrationManager.getStatus();
         
-        if (rows[0]) {
-            health.stats = {
-                dbRecords: rows[0].pacientes + rows[0].estudiantes + rows[0].asignaciones,
-                pacientes: rows[0].pacientes,
-                estudiantes: rows[0].estudiantes,
-                asignaciones: rows[0].asignaciones
-            };
-        }
-    } catch (error) {
-        console.error('Error en health check:', error);
-        health.database = false;
-    }
-    
-    return health;
-}
-
-// Middleware de manejo de errores
-app.use(handleDatabaseError);
-
-// Manejo de rutas no encontradas
-app.use('*', (req, res) => {
-    if (req.path.startsWith('/api/')) {
-        res.status(404).json({
-            success: false,
-            error: 'Endpoint no encontrado'
-        });
-    } else {
-        res.sendFile(path.join(__dirname, 'public', 'index.html'));
-    }
-});
-
-// Manejo graceful de cierre
-process.on('SIGTERM', () => {
-    console.log('📛 Recibida señal SIGTERM, cerrando servidor...');
-    process.exit(0);
-});
-
-process.on('SIGINT', () => {
-    console.log('📛 Recibida señal SIGINT, cerrando servidor...');
-    process.exit(0);
-});
-
-// Inicialización del sistema simplificada
-async function initializeSystem() {
-    try {
-        console.log('🚀 Inicializando sistema Dental Matching...');
-        const healthCheck = await getSystemHealth();
-        
-        if (healthCheck.database) {
-            console.log('✅ Base de datos conectada correctamente');
-            console.log(`   - Registros totales: ${healthCheck.stats.dbRecords}`);
+        if (status.pending > 0) {
+            console.log(`🔄 Ejecutando ${status.pending} migración(es) pendiente(s)...`);
             
-            systemInitialized = true;
-            initializationError = null;
-            console.log('✅ Sistema inicializado correctamente');
+            const result = await migrationManager.migrate();
+            
+            console.log('✅ Migraciones automáticas completadas:');
+            result.migrations.forEach(migration => {
+                console.log(`   ✓ ${migration.version} - ${migration.name}`);
+            });
         } else {
-            throw new Error('No se pudo conectar a la base de datos');
+            console.log('✅ Base de datos actualizada (sin migraciones pendientes)');
         }
+
+        // Validar integridad
+        const integrity = await migrationManager.validateIntegrity();
+        if (!integrity.valid) {
+            console.warn('⚠️  Problemas de integridad detectados en migraciones');
+            integrity.issues.forEach(issue => {
+                console.warn(`   - ${issue.type}: ${issue.version}`);
+            });
+        }
+
     } catch (error) {
-        console.error('❌ Error inicializando sistema:', error.message);
-        systemInitialized = false;
-        initializationError = error.message;
-        
-        // No salir del proceso, permitir que el servidor funcione parcialmente
-        console.log('⚠️ Sistema iniciado en modo degradado');
+        console.error('❌ Error en migraciones automáticas:', error.message);
+        // No fallar el servidor por problemas de migración
+        console.log('🔄 Continuando sin migraciones...');
     }
 }
 
-// Iniciar servidor
-const server = app.listen(PORT, async () => {
-    console.log(`🏥 Servidor Dental Matching iniciado en puerto ${PORT}`);
-    console.log(`📱 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🌐 URL: http://localhost:${PORT}`);
+/**
+ * Inicializar servicios enterprise
+ */
+async function initializeEnterpriseServices() {
+    console.log('🔧 Inicializando servicios enterprise...');
     
-    // Inicializar sistema
-    await initializeSystem();
+    try {
+        // Inicializar base de datos unificada
+        const databaseService = require('./src/infrastructure/database/databaseService');
+        await databaseService.initialize();
+        console.log('✅ Base de datos enterprise inicializada');
+
+        // Ejecutar migraciones automáticamente
+        await runAutomaticMigrations();
+        
+        // Inicializar cache Redis
+        const cacheService = require('./src/infrastructure/cache/cacheService');
+        await cacheService.initialize();
+        console.log('✅ Cache Redis inicializado');
+        
+        // Inicializar health checks
+        const healthChecker = require('./src/infrastructure/health/healthChecker');
+        healthChecker.registerDefaultChecks();
+        
+        // Agregar health check para cache
+        healthChecker.register('cache', async () => {
+            return await cacheService.healthCheck();
+        }, { critical: false });
+        
+        // Agregar health check para base de datos  
+        healthChecker.register('database', async () => {
+            return await databaseService.performHealthCheck();
+        }, { critical: true });
+        
+        console.log('✅ Health checks configurados');
+        
+        // Inicializar métricas del sistema
+        const systemMetrics = require('./src/infrastructure/health/systemMetrics');
+        systemMetrics.registerDefaultCollectors();
+        systemMetrics.start();
+        console.log('✅ Métricas del sistema iniciadas');
+        
+    } catch (error) {
+        console.error('⚠️  Error inicializando servicios enterprise:', error.message);
+        console.log('🔄 Continuando con servicios básicos...');
+    }
+}
+
+/**
+ * Configurar rutas adicionales
+ */
+async function setupLegacyCompatibility() {
+    console.log('🔄 Configurando rutas adicionales...');
+    
+    // Matching: Rate limiting relajado para desarrollo
+    const rateLimit = require('express-rate-limit');
+    const matchingLimiter = rateLimit({
+        windowMs: 1 * 60 * 1000, // 1 minuto
+        max: process.env.NODE_ENV === 'development' ? 100 : 5, // 100 en dev, 5 en prod
+        message: {
+            success: false,
+            error: 'MATCHING_RATE_LIMIT_EXCEEDED',
+            message: 'Operación de matching limitada por recursos intensivos'
+        }
+    });
+    
+    try {
+        const matchingRoutes = require('./routes/matching');
+        app.use('/api/matching', matchingLimiter, matchingRoutes);
+        console.log('✅ Ruta de matching configurada con rate limiting estricto');
+    } catch (matchingError) {
+        console.warn('⚠️  Error montando ruta de matching:', matchingError.message);
+    }
+
+    // Ruta de test para matching IA v3.0
+    try {
+        const matchingTestRoutes = require('./routes/matching-test');
+        app.use('/api/test-matching', matchingTestRoutes);
+        console.log('✅ Ruta de test matching IA v3.0 configurada');
+    } catch (testError) {
+        console.warn('⚠️  Error montando ruta de test:', testError.message);
+    }
+    
+    // Ruta de dashboard
+    try {
+        const dashboardRoutes = require('./routes/dashboard');
+        app.use('/api/dashboard', dashboardRoutes);
+        console.log('✅ Ruta de dashboard configurada');
+    } catch (dashboardError) {
+        console.warn('⚠️  Error montando ruta de dashboard:', dashboardError.message);
+    }
+    
+    console.log('✅ Configuración de rutas completada');
+}
+
+/**
+ * Manejar errores del servidor
+ */
+function handleServerError(error) {
+    if (error.syscall !== 'listen') {
+        throw error;
+    }
+    
+    const bind = typeof PORT === 'string' ? `Pipe ${PORT}` : `Puerto ${PORT}`;
+    
+    switch (error.code) {
+        case 'EACCES':
+            console.error(`❌ ${bind} requiere privilegios elevados`);
+            process.exit(1);
+            break;
+        case 'EADDRINUSE':
+            console.error(`❌ ${bind} ya está en uso`);
+            process.exit(1);
+            break;
+        default:
+            throw error;
+    }
+}
+
+/**
+ * Graceful shutdown
+ */
+function gracefulShutdown(signal) {
+    console.log(`\n📛 Recibida señal ${signal}, cerrando servidor...`);
+    
+    if (global.httpServer) {
+        global.httpServer.close(() => {
+            console.log('✅ Servidor HTTP cerrado');
+            process.exit(0);
+        });
+        
+        // Forzar cierre si no responde en 10 segundos
+        setTimeout(() => {
+            console.error('❌ Forzando cierre del servidor');
+            process.exit(1);
+        }, 10000);
+    } else {
+        process.exit(0);
+    }
+}
+
+// Configurar manejo de señales
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Manejar errores no capturados
+process.on('uncaughtException', (error) => {
+    console.error('❌ Excepción no capturada:', error);
+    gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    // Check if it's a Redis connection error
+    const isRedisError = reason && (
+        reason.message?.includes('ECONNREFUSED') || 
+        reason.message?.includes('max retries per request') ||
+        reason.message?.includes('Redis') ||
+        reason.code === 'ECONNREFUSED'
+    );
+    
+    if (isRedisError) {
+        console.warn('⚠️  Redis connection issue (non-fatal):', reason.message || reason);
+        logger.warn('Redis connection error handled gracefully', {
+            error: reason.message || String(reason),
+            type: 'redis_connection_error'
+        });
+        return; // Don't shutdown for Redis errors
+    }
+    
+    console.error('❌ Promise rechazada no manejada:', { reason, promise });
+    logger.error('Recibida señal unhandledRejection, iniciando cierre graceful...');
+    gracefulShutdown('unhandledRejection');
+});
+
+// Iniciar servidor unificado
+startServer().catch((error) => {
+    console.error('❌ Error fatal iniciando aplicación:', error);
+    process.exit(1);
 });
 
 module.exports = app;

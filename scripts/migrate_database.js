@@ -330,11 +330,11 @@ class DatabaseMigrator {
                     await this.connection.execute(`
                         INSERT INTO configuracion_sistema (clave, valor, descripcion, tipo_dato) VALUES
                         ('version_sistema', '2.0.0', 'Versión actual del sistema', 'string'),
-                        ('sync_intervalo_minutos', '5', 'Intervalo de sincronización con Google Sheets en minutos', 'int'),
+                        ('backup_intervalo_horas', '24', 'Intervalo de backup automático en horas', 'int'),
                         ('max_casos_por_estudiante', '10', 'Máximo número de casos por estudiante', 'int'),
                         ('dias_expiracion_codigo', '30', 'Días de validez para códigos de acceso', 'int'),
                         ('email_notificaciones_activo', 'true', 'Activar envío de notificaciones por email', 'boolean'),
-                        ('url_google_sheet', '', 'URL del Google Sheet con formulario de pacientes', 'string'),
+                        ('formulario_web_activo', 'true', 'Activar formulario web de registro de pacientes', 'boolean'),
                         ('tratamientos_disponibles', '["Endodoncia", "Destartraje y Pulido Coronario", "Pulido Radicular", "Exodoncia Simple", "Resina Simple", "Resina Compuesta", "Corona", "Incrustación", "Protesis Parcial Removible", "Protesis Total Removible"]', 'Lista de tratamientos disponibles', 'json')
                     `);
                     console.log('✅ Configuración inicial insertada');

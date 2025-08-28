@@ -223,9 +223,9 @@ HOST=0.0.0.0
 JWT_SECRET=$(openssl rand -hex 32)
 SESSION_SECRET=$(openssl rand -hex 32)
 
-# Configuración de Google Sheets
-GOOGLE_SHEETS_CREDENTIALS_PATH=./config/google-credentials.json
-GOOGLE_SHEETS_TOKEN_PATH=./config/google-token.json
+# Configuración de formulario web
+WEB_FORM_ENDPOINT=/api/pacientes/registro
+WEB_FORM_CAPTCHA_ENABLED=false
 
 # Configuración de email
 SMTP_HOST=smtp.gmail.com

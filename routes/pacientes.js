@@ -1,9 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { getConnection } = require('../config/database');
+const LegacyLoggerAdapter = require('./legacyLoggerAdapter');
 
-// GET /api/pacientes - Obtener todos los pacientes
-router.get('/', async (req, res) => {
+// Importar middleware de autenticación
+const { authenticateToken } = require('../src/shared/middleware/auth');
+
+// Inicializar logger estructurado para esta ruta
+const logger = new LegacyLoggerAdapter('pacientes');
+
+// GET /api/pacientes - Obtener todos los pacientes (PROTEGIDO)
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const db = await getConnection();
     const [rows] = await db.execute(`
@@ -61,16 +68,57 @@ router.get('/', async (req, res) => {
       data: pacientesProcesados
     });
   } catch (error) {
-    console.error('Error obteniendo pacientes:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Error al obtener pacientes' 
-    });
+    const { handleRouteError } = require('../src/shared/utils/errorHandlerHelper');
+    handleRouteError(error, req, res, 'obtener_pacientes');
+  }
+});
+
+// GET /api/pacientes/stats - Obtener estadísticas de pacientes
+router.get('/stats', authenticateToken, async (req, res) => {
+  try {
+    const db = await getConnection();
+    const [rows] = await db.execute('SELECT estado, prioridad, ciudad, fecha_registro FROM pacientes WHERE activo = 1');
+    
+    const stats = {
+      total: rows.length,
+      pendientes: rows.filter(p => p.estado === 'pendiente').length,
+      asignados: rows.filter(p => p.estado === 'asignado').length,
+      completados: rows.filter(p => p.estado === 'completado').length,
+      byPrioridad: {},
+      byCiudad: {},
+      nuevosHoy: 0
+    };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const row of rows) {
+      // Stats by priority
+      if (row.prioridad) {
+        stats.byPrioridad[row.prioridad] = (stats.byPrioridad[row.prioridad] || 0) + 1;
+      }
+
+      // Stats by city
+      if (row.ciudad) {
+        stats.byCiudad[row.ciudad] = (stats.byCiudad[row.ciudad] || 0) + 1;
+      }
+
+      // new today
+      const fechaRegistro = new Date(row.fecha_registro);
+      if (fechaRegistro >= today) {
+        stats.nuevosHoy++;
+      }
+    }
+
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    logger.error('Error obteniendo estadísticas de pacientes', error);
+    res.status(500).json({ success: false, error: 'Error al obtener estadísticas' });
   }
 });
 
 // GET /api/pacientes/:id - Obtener un paciente específico
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const db = await getConnection();
@@ -91,7 +139,7 @@ router.get('/:id', async (req, res) => {
       data: rows[0]
     });
   } catch (error) {
-    console.error('Error obteniendo paciente:', error);
+    logger.error('Error obteniendo paciente', error);
     res.status(500).json({ 
       success: false, 
       error: 'Error al obtener paciente' 

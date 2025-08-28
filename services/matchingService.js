@@ -3,42 +3,67 @@ const autoNotificationService = require('./autoNotificationService');
 
 /**
  * Servicio de Matching Avanzado para Sistema Dental
- * Versión 2.0 - Matching por Horarios Específicos
+ * Versión 2.1 - Matching Inteligente con Horarios de Pacientes y Estudiantes
  * 
- * ALGORITMO DE MATCHING INTELIGENTE:
+ * ALGORITMO DE MATCHING INTELIGENTE MEJORADO:
  * 1. Detección de tratamiento basada en síntomas del paciente
  * 2. Asignación automática de clínica según edad (Niño/Adulto)
- * 3. Búsqueda de estudiantes disponibles por especialidad y horario
- * 4. Validación de disponibilidad sin solapamientos
- * 5. Scoring avanzado para matching óptimo
- * 6. Creación de asignaciones específicas por horario
- * 7. Actualización de disponibilidad en tiempo real
- * 8. Notificaciones automáticas personalizadas
+ * 3. 🆕 Extracción y análisis de preferencias horarias del paciente
+ * 4. 🆕 Verificación de compatibilidad horarios paciente-estudiante
+ * 5. Búsqueda de estudiantes disponibles por especialidad y horario
+ * 6. Validación de disponibilidad sin solapamientos
+ * 7. 🆕 Scoring IA v4.0 con prioridad en compatibilidad horaria (30% del score)
+ * 8. Creación de asignaciones específicas por horario
+ * 9. Actualización de disponibilidad en tiempo real
+ * 10. Notificaciones automáticas personalizadas
+ * 
+ * MEJORAS v2.1:
+ * - Sistema de scoring rediseñado con horarios como factor principal
+ * - Análisis inteligente de solapamiento de horarios paciente-estudiante  
+ * - Flexibilidad horaria como factor de scoring
+ * - Validación estricta de compatibilidad (mínimo 50% solapamiento)
+ * - Logs detallados para debugging y optimización
  */
 class AdvancedMatchingService {
     constructor() {
         this.connection = null;
         this.isMatching = false;
         
-        // Mapeo inteligente de síntomas a tratamientos con IA
+        // MAPEO INTELIGENTE DE IA MEJORADO - Versión 3.0
         this.sintomasATratamientos = {
-            // ENDODONCIA - Problemas de raíz/nervio
-            'dolor constante': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.9 },
-            'dolor insoportable': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.95 },
-            'dolor al masticar': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.8 },
-            'sensibilidad al frío': { tratamientos: ['Endodoncia'], prioridad: 'moderada', confianza: 0.7 },
-            'sensibilidad al calor': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.85 },
-            'inflamación': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.75 },
+            // ENDODONCIA - Problemas de raíz/nervio - IA Mejorada
+            'dolor constante': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.92 },
+            'dolor insoportable': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.98 },
+            'dolor al masticar': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.85 },
+            'dolor punzante': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.88 },
+            'dolor pulsátil': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.95 },
+            'sensibilidad al frío': { tratamientos: ['Endodoncia'], prioridad: 'moderada', confianza: 0.75 },
+            'sensibilidad al calor': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.90 },
+            'sensibilidad extrema': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.93 },
+            'inflamación': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.80 },
+            'hinchazón': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.90 },
+            'absceso': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.98 },
             'tratamiento de conducto': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 1.0 },
-            'me duele una muela': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.85 },
+            'me duele una muela': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.88 },
+            'dolor de muelas': { tratamientos: ['Endodoncia'], prioridad: 'alta', confianza: 0.90 },
+            'muela infectada': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.95 },
+            'pus': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.92 },
+            'flemón': { tratamientos: ['Endodoncia'], prioridad: 'urgente', confianza: 0.96 },
             
-            // DESTARTRAJE Y PULIDO - Limpieza y mantenimiento
+            // DESTARTRAJE Y PULIDO - Limpieza y mantenimiento - IA Mejorada
             'limpieza dental': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 1.0 },
-            'limpieza profunda': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.9 },
-            'chequeo general': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.8 },
-            'sarro': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.9 },
-            'placa': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.85 },
-            'dientes amarillos': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.7 },
+            'limpieza profunda': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.95 },
+            'chequeo general': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.85 },
+            'chequeo de rutina': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.90 },
+            'profilaxis': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.95 },
+            'sarro': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.92 },
+            'cálculo dental': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.88 },
+            'placa bacteriana': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.90 },
+            'placa': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.88 },
+            'dientes amarillos': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.75 },
+            'dientes manchados': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'baja', confianza: 0.80 },
+            'mal aliento persistente': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.70 },
+            'halitosis': { tratamientos: ['Destartraje y Pulido Coronario'], prioridad: 'moderada', confianza: 0.75 },
             
             // PULIDO RADICULAR - Problemas de encías
             'sangran las encías': { tratamientos: ['Pulido Radicular'], prioridad: 'moderada', confianza: 0.9 },
@@ -408,14 +433,18 @@ class AdvancedMatchingService {
     }
     
     /**
-     * 🎯 ALGORITMO DE MATCHING ÓPTIMO
-     * Encuentra el mejor estudiante disponible considerando múltiples factores
+     * 🎯 ALGORITMO DE MATCHING ÓPTIMO CON HORARIOS DE PACIENTES
+     * Encuentra el mejor estudiante disponible considerando horarios de estudiantes Y pacientes
      */
     async encontrarMatchingOptimo(paciente, tratamientoDetectado, clinica) {
         console.log(`🔍 Buscando matching óptimo para ${tratamientoDetectado.especialidad} en ${clinica}`);
         
-        // Obtener estudiantes disponibles
-        const estudiantesDisponibles = await this.getEstudiantesDisponibles(tratamientoDetectado.especialidad, clinica);
+        // Obtener preferencias de horario del paciente
+        const preferenciasHorario = await this.obtenerPreferenciasHorarioPaciente(paciente);
+        console.log(`⏰ Preferencias del paciente: ${JSON.stringify(preferenciasHorario)}`);
+        
+        // Obtener estudiantes disponibles con sus horarios
+        const estudiantesDisponibles = await this.getEstudiantesDisponiblesConHorarios(tratamientoDetectado.especialidad, clinica);
         console.log(`👥 Estudiantes disponibles: ${estudiantesDisponibles.length}`);
         
         if (estudiantesDisponibles.length === 0) {
@@ -429,6 +458,17 @@ class AdvancedMatchingService {
         let mejorScore = 0;
         
         for (const estudiante of estudiantesDisponibles) {
+            // VALIDACIÓN DE COMPATIBILIDAD DE HORARIOS PACIENTE-ESTUDIANTE
+            const compatibilidadHorarios = this.verificarCompatibilidadHorarios(
+                preferenciasHorario, 
+                estudiante
+            );
+            
+            if (!compatibilidadHorarios.compatible) {
+                console.log(`⏰ ${estudiante.nombre_completo} horarios incompatibles: ${compatibilidadHorarios.motivo}`);
+                continue;
+            }
+            
             // VALIDACIÓN DE HORARIOS SIN SOLAPAMIENTOS
             const disponibilidadHorarios = await this.verificarDisponibilidadHorarios(
                 estudiante.id_estudiante,
@@ -442,8 +482,13 @@ class AdvancedMatchingService {
                 continue;
             }
             
-            // CÁLCULO DE SCORE DE MATCHING
-            const score = this.calcularScoreMatching(paciente, estudiante, tratamientoDetectado);
+            // CÁLCULO DE SCORE DE MATCHING MEJORADO (incluye compatibilidad horarios)
+            const score = this.calcularScoreMatchingConHorarios(
+                paciente, 
+                estudiante, 
+                tratamientoDetectado, 
+                compatibilidadHorarios
+            );
             
             if (score > mejorScore) {
                 mejorScore = score;
@@ -458,7 +503,8 @@ class AdvancedMatchingService {
                     hora_fin: estudiante.hora_fin,
                     fecha_asignacion: this.calcularProximaFecha(estudiante.dia_semana),
                     score: score,
-                    disponibilidad: disponibilidadHorarios
+                    disponibilidad: disponibilidadHorarios,
+                    compatibilidadHorarios: compatibilidadHorarios
                 };
             }
         }
@@ -466,16 +512,209 @@ class AdvancedMatchingService {
         if (!mejorMatch) {
             return {
                 success: false,
-                reason: 'No hay horarios disponibles para los estudiantes encontrados'
+                reason: 'No hay horarios compatibles entre estudiantes y paciente'
             };
         }
         
-        console.log(`✅ Mejor match: ${mejorMatch.estudiante.nombre_completo} (Score: ${mejorScore.toFixed(2)})`);
+        console.log(`✅ Mejor match: ${mejorMatch.estudiante.nombre_completo} (Score: ${mejorScore.toFixed(2)}) - Compatibilidad: ${mejorMatch.compatibilidadHorarios.scoreCompatibilidad.toFixed(2)}`);
         return mejorMatch;
     }
     
     /**
-     * 👥 Obtiene estudiantes disponibles para una especialidad y clínica específica
+     * ⏰ OBTENER PREFERENCIAS DE HORARIO DEL PACIENTE
+     * Extrae y normaliza las preferencias horarias desde requerimientos_paciente
+     */
+    async obtenerPreferenciasHorarioPaciente(paciente) {
+        // Buscar requerimientos específicos del paciente
+        const queryRequerimientos = `
+            SELECT dias_disponibles, horarios_preferidos
+            FROM requerimientos_paciente 
+            WHERE id_paciente = ? AND activo = TRUE 
+            LIMIT 1
+        `;
+        
+        const [requerimientos] = await this.connection.execute(queryRequerimientos, [paciente.id]);
+        
+        let diasDisponibles = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
+        let horariosPreferidos = {
+            manana: { inicio: '08:00', fin: '13:00' },
+            tarde: { inicio: '14:00', fin: '20:00' }
+        };
+        
+        // Si existe requerimiento específico, usar esos datos
+        if (requerimientos.length > 0) {
+            try {
+                if (requerimientos[0].dias_disponibles) {
+                    diasDisponibles = JSON.parse(requerimientos[0].dias_disponibles);
+                }
+                if (requerimientos[0].horarios_preferidos) {
+                    horariosPreferidos = JSON.parse(requerimientos[0].horarios_preferidos);
+                }
+            } catch (error) {
+                console.log('⚠️ Error parseando horarios de requerimientos, usando fallback');
+            }
+        }
+        
+        // Fallback a datos del paciente original
+        if (paciente.dias_disponibles) {
+            try {
+                const diasTexto = paciente.dias_disponibles.toLowerCase();
+                const diasDetectados = this.diasSemana.filter(dia => diasTexto.includes(dia));
+                if (diasDetectados.length > 0) {
+                    diasDisponibles = diasDetectados;
+                }
+            } catch (error) {
+                console.log('⚠️ Error parseando días del paciente');
+            }
+        }
+        
+        if (paciente.horario_preferencia) {
+            try {
+                const horarioTexto = paciente.horario_preferencia.toLowerCase();
+                if (horarioTexto.includes('mañana') || horarioTexto.includes('manana')) {
+                    horariosPreferidos = { manana: { inicio: '08:00', fin: '13:00' } };
+                } else if (horarioTexto.includes('tarde')) {
+                    horariosPreferidos = { tarde: { inicio: '14:00', fin: '20:00' } };
+                }
+            } catch (error) {
+                console.log('⚠️ Error parseando preferencia horaria del paciente');
+            }
+        }
+        
+        return {
+            diasDisponibles: diasDisponibles,
+            horariosPreferidos: horariosPreferidos,
+            flexibilidad: this.calcularFlexibilidadHoraria(diasDisponibles, horariosPreferidos)
+        };
+    }
+    
+    /**
+     * 📊 Calcula flexibilidad horaria del paciente (para scoring)
+     */
+    calcularFlexibilidadHoraria(dias, horarios) {
+        const totalDias = dias.length;
+        const totalTurnos = Object.keys(horarios).length;
+        
+        // Más días y turnos = mayor flexibilidad
+        const scoreDias = Math.min(1.0, totalDias / 5); // Máximo 5 días
+        const scoreTurnos = Math.min(1.0, totalTurnos / 2); // Máximo mañana + tarde
+        
+        return (scoreDias + scoreTurnos) / 2;
+    }
+    
+    /**
+     * 🔄 VERIFICAR COMPATIBILIDAD DE HORARIOS PACIENTE-ESTUDIANTE
+     * Comprueba si los horarios del estudiante son compatibles con preferencias del paciente
+     */
+    verificarCompatibilidadHorarios(preferenciasHorario, estudiante) {
+        const { diasDisponibles, horariosPreferidos } = preferenciasHorario;
+        
+        // 1. Verificar compatibilidad de día
+        const diaCompatible = diasDisponibles.includes(estudiante.dia_semana);
+        
+        if (!diaCompatible) {
+            return {
+                compatible: false,
+                motivo: `Día ${estudiante.dia_semana} no disponible para el paciente`,
+                scoreCompatibilidad: 0
+            };
+        }
+        
+        // 2. Verificar compatibilidad de horario
+        const horaInicioEst = this.convertirHoraAMinutos(estudiante.hora_inicio);
+        const horaFinEst = this.convertirHoraAMinutos(estudiante.hora_fin);
+        
+        let mejorOverlap = 0;
+        let mejorTurno = '';
+        
+        for (const [turno, horario] of Object.entries(horariosPreferidos)) {
+            const horaInicioPac = this.convertirHoraAMinutos(horario.inicio);
+            const horaFinPac = this.convertirHoraAMinutos(horario.fin);
+            
+            // Calcular solapamiento
+            const inicioOverlap = Math.max(horaInicioEst, horaInicioPac);
+            const finOverlap = Math.min(horaFinEst, horaFinPac);
+            
+            if (finOverlap > inicioOverlap) {
+                const duracionOverlap = finOverlap - inicioOverlap;
+                const duracionEstudiante = horaFinEst - horaInicioEst;
+                const porcentajeOverlap = duracionOverlap / duracionEstudiante;
+                
+                if (porcentajeOverlap > mejorOverlap) {
+                    mejorOverlap = porcentajeOverlap;
+                    mejorTurno = turno;
+                }
+            }
+        }
+        
+        // Requerir al menos 50% de solapamiento para ser compatible
+        const compatible = mejorOverlap >= 0.5;
+        
+        return {
+            compatible: compatible,
+            motivo: compatible ? 
+                `Compatible con turno ${mejorTurno} (${(mejorOverlap * 100).toFixed(0)}% solapamiento)` :
+                'Sin solapamiento suficiente con horarios preferidos',
+            scoreCompatibilidad: mejorOverlap,
+            turnoPreferido: mejorTurno,
+            porcentajeSolapamiento: mejorOverlap
+        };
+    }
+    
+    /**
+     * 🕒 Convierte hora formato "HH:MM" a minutos desde medianoche
+     */
+    convertirHoraAMinutos(hora) {
+        const [horas, minutos] = hora.split(':').map(Number);
+        return horas * 60 + minutos;
+    }
+    
+    /**
+     * 👥 OBTIENE ESTUDIANTES DISPONIBLES CON HORARIOS DETALLADOS
+     * Versión mejorada que incluye horarios completos de disponibilidad
+     */
+    async getEstudiantesDisponiblesConHorarios(especialidad, clinica) {
+        const query = `
+            SELECT DISTINCT
+                e.id as id_estudiante,
+                e.nombre_completo,
+                e.año_carrera,
+                e.telefono,
+                e.email,
+                e.casos_activos,
+                e.casos_completados,
+                e.casos_necesarios,
+                de.fecha,
+                de.dia_semana,
+                de.hora_inicio,
+                de.hora_fin,
+                de.especialidad,
+                de.clinica,
+                de.capacidad_total,
+                de.pacientes_asignados,
+                (de.capacidad_total - de.pacientes_asignados) as espacios_disponibles
+            FROM estudiantes_odontologia e
+            INNER JOIN disponibilidad_estudiante de ON e.id = de.id_estudiante
+            WHERE e.estado = 'activo'
+                AND de.especialidad = ?
+                AND de.clinica LIKE ?
+                AND de.fecha >= CURDATE()
+                AND de.disponible = 1
+                AND (de.capacidad_total - de.pacientes_asignados) > 0
+                AND e.casos_activos < e.casos_necesarios
+            ORDER BY 
+                de.fecha ASC,
+                e.casos_activos ASC,
+                de.hora_inicio ASC
+        `;
+        
+        const clinicaPattern = clinica.includes('Nino') ? '%Nino%' : '%Adulto%';
+        const [rows] = await this.connection.execute(query, [especialidad, clinicaPattern]);
+        return rows;
+    }
+    
+    /**
+     * 👥 Obtiene estudiantes disponibles para una especialidad y clínica específica (método legacy)
      */
     async getEstudiantesDisponibles(especialidad, clinica) {
         const query = `
@@ -581,38 +820,210 @@ class AdvancedMatchingService {
     }
     
     /**
-     * 📊 SISTEMA DE SCORING AVANZADO
-     * Calcula el score óptimo considerando múltiples factores
+     * 📊 SISTEMA DE SCORING AVANZADO CON IA v4.0 - CON HORARIOS DE PACIENTES
+     * Algoritmo mejorado que incluye compatibilidad de horarios paciente-estudiante
+     */
+    calcularScoreMatchingConHorarios(paciente, estudiante, tratamientoDetectado, compatibilidadHorarios) {
+        let score = 0;
+        const factores = {};
+        
+        // Factor 1: Compatibilidad de tratamiento con año de carrera (25%) - REDUCIDO
+        const compatibilidadTratamiento = this.complejidadPorAno[tratamientoDetectado.tratamiento]?.[estudiante.año_carrera] || 0.5;
+        const scoreCompatibilidad = compatibilidadTratamiento * 0.25;
+        score += scoreCompatibilidad;
+        factores.compatibilidad = scoreCompatibilidad;
+        
+        // Factor 2: NUEVO - Compatibilidad de horarios paciente-estudiante (30%) - PRIORIDAD MÁXIMA
+        const scoreHorarios = compatibilidadHorarios.scoreCompatibilidad * 0.30;
+        score += scoreHorarios;
+        factores.horarios = scoreHorarios;
+        
+        // Factor 3: Carga de trabajo optimizada (20%) - REDUCIDO
+        const casosActivos = estudiante.casos_activos || 0;
+        const casosNecesarios = estudiante.casos_necesarios || 10;
+        const factorCarga = Math.max(0, 1 - (casosActivos / casosNecesarios));
+        const bonoCarga = casosActivos === 0 ? 0.05 : 0; // REDUCIDO
+        const scoreCarga = (factorCarga * 0.20) + bonoCarga;
+        score += scoreCarga;
+        factores.carga = scoreCarga;
+        
+        // Factor 4: Urgencia inteligente (15%) - REDUCIDO
+        const urgenciaScores = {
+            'urgente': 1.0,
+            'alta': 0.85,
+            'moderada': 0.65,
+            'baja': 0.4
+        };
+        const scoreUrgencia = (urgenciaScores[tratamientoDetectado.prioridad] || 0.65) * 0.15;
+        score += scoreUrgencia;
+        factores.urgencia = scoreUrgencia;
+        
+        // Factor 5: Análisis de dolor (5%) - REDUCIDO
+        let scoreDolor = 0.025; // valor base reducido
+        if (paciente.nivel_dolor) {
+            const nivelDolor = parseInt(paciente.nivel_dolor) || 5;
+            if (nivelDolor >= 8) {
+                scoreDolor = 0.05;
+            } else if (nivelDolor >= 6) {
+                scoreDolor = 0.04;
+            } else if (nivelDolor >= 4) {
+                scoreDolor = 0.03;
+            } else {
+                scoreDolor = 0.02;
+            }
+        }
+        score += scoreDolor;
+        factores.dolor = scoreDolor;
+        
+        // Factor 6: Experiencia del estudiante (5%) - REDUCIDO
+        const casosCompletados = estudiante.casos_completados || 0;
+        let scoreExperiencia = 0;
+        if (casosCompletados >= 20) {
+            scoreExperiencia = 0.05;
+        } else if (casosCompletados >= 10) {
+            scoreExperiencia = 0.04;
+        } else if (casosCompletados >= 5) {
+            scoreExperiencia = 0.03;
+        } else {
+            scoreExperiencia = 0.02;
+        }
+        score += scoreExperiencia;
+        factores.experiencia = scoreExperiencia;
+        
+        // Multiplicadores de IA v4.0 - Incluye horarios
+        let multiplicadorIA = 1.0;
+        
+        // BONUS MÁXIMO para matching perfecto de horarios
+        if (compatibilidadHorarios.scoreCompatibilidad >= 0.9) {
+            multiplicadorIA += 0.15; // NUEVO - Bonus grande para horarios perfectos
+        } else if (compatibilidadHorarios.scoreCompatibilidad >= 0.7) {
+            multiplicadorIA += 0.1; // Bonus medio para horarios buenos
+        }
+        
+        // Bonus para matching perfecto de especialidad
+        if (tratamientoDetectado.confianza >= 0.9 && compatibilidadTratamiento >= 0.8) {
+            multiplicadorIA += 0.05; // REDUCIDO
+        }
+        
+        // Penalty para sobrecarga de estudiante (más estricto)
+        if (casosActivos > casosNecesarios * 0.7) {
+            multiplicadorIA -= 0.1; // AUMENTADO
+        }
+        
+        // NUEVO - Bonus para combinación perfecta: horarios + urgencia
+        if (compatibilidadHorarios.scoreCompatibilidad >= 0.8 && tratamientoDetectado.prioridad === 'urgente') {
+            multiplicadorIA += 0.05;
+        }
+        
+        // NUEVO - Penalty si horarios son apenas compatibles
+        if (compatibilidadHorarios.scoreCompatibilidad < 0.6) {
+            multiplicadorIA -= 0.05;
+        }
+        
+        const scoreFinal = Math.min(1.0, Math.max(0, score * multiplicadorIA));
+        
+        // Log mejorado para debugging
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`🧮 Score IA v4.0: ${scoreFinal.toFixed(3)} | Horarios: ${scoreHorarios.toFixed(3)} | Otros: ${JSON.stringify(factores)} | Mult: ${multiplicadorIA.toFixed(2)}`);
+        }
+        
+        return scoreFinal;
+    }
+    
+    /**
+     * 📊 SISTEMA DE SCORING AVANZADO CON IA v3.0 (método legacy)
+     * Algoritmo mejorado con machine learning patterns
      */
     calcularScoreMatching(paciente, estudiante, tratamientoDetectado) {
         let score = 0;
+        const factores = {};
         
-        // Factor 1: Compatibilidad de tratamiento con año de carrera (40%)
+        // Factor 1: Compatibilidad de tratamiento con año de carrera (35%)
         const compatibilidadTratamiento = this.complejidadPorAno[tratamientoDetectado.tratamiento]?.[estudiante.año_carrera] || 0.5;
-        score += compatibilidadTratamiento * 0.4;
+        const scoreCompatibilidad = compatibilidadTratamiento * 0.35;
+        score += scoreCompatibilidad;
+        factores.compatibilidad = scoreCompatibilidad;
         
-        // Factor 2: Carga de trabajo del estudiante (30%)
-        const factorCarga = 1 - (estudiante.casos_activos / (estudiante.casos_necesarios || 10));
-        score += Math.max(0, factorCarga) * 0.3;
+        // Factor 2: Carga de trabajo optimizada (25%) - IA Mejorada
+        const casosActivos = estudiante.casos_activos || 0;
+        const casosNecesarios = estudiante.casos_necesarios || 10;
+        const factorCarga = Math.max(0, 1 - (casosActivos / casosNecesarios));
+        // Bonificación para estudiantes con poca carga
+        const bonoCarga = casosActivos === 0 ? 0.1 : 0;
+        const scoreCarga = (factorCarga * 0.25) + bonoCarga;
+        score += scoreCarga;
+        factores.carga = scoreCarga;
         
-        // Factor 3: Urgencia del paciente (20%)
-        const urgenciaScore = {
+        // Factor 3: Urgencia inteligente (20%) - IA Mejorada
+        const urgenciaScores = {
             'urgente': 1.0,
-            'alta': 0.8,
-            'moderada': 0.6,
+            'alta': 0.85,
+            'moderada': 0.65,
             'baja': 0.4
         };
-        score += (urgenciaScore[tratamientoDetectado.prioridad] || 0.6) * 0.2;
+        const scoreUrgencia = (urgenciaScores[tratamientoDetectado.prioridad] || 0.65) * 0.2;
+        score += scoreUrgencia;
+        factores.urgencia = scoreUrgencia;
         
-        // Factor 4: Nivel de dolor del paciente (10%)
+        // Factor 4: Análisis de dolor avanzado (10%) - IA Mejorada
+        let scoreDolor = 0.05; // valor base
         if (paciente.nivel_dolor) {
-            const dolorScore = paciente.nivel_dolor / 10;
-            score += dolorScore * 0.1;
+            const nivelDolor = parseInt(paciente.nivel_dolor) || 5;
+            // Scoring no lineal para dolor alto
+            if (nivelDolor >= 8) {
+                scoreDolor = 0.1; // Máximo para dolor severo
+            } else if (nivelDolor >= 6) {
+                scoreDolor = 0.08;
+            } else if (nivelDolor >= 4) {
+                scoreDolor = 0.06;
+            } else {
+                scoreDolor = 0.04;
+            }
+        }
+        score += scoreDolor;
+        factores.dolor = scoreDolor;
+        
+        // Factor 5: Experiencia del estudiante (10%) - NUEVO
+        const casosCompletados = estudiante.casos_completados || 0;
+        let scoreExperiencia = 0;
+        if (casosCompletados >= 20) {
+            scoreExperiencia = 0.1; // Muy experimentado
+        } else if (casosCompletados >= 10) {
+            scoreExperiencia = 0.08;
+        } else if (casosCompletados >= 5) {
+            scoreExperiencia = 0.06;
         } else {
-            score += 0.05;
+            scoreExperiencia = 0.04;
+        }
+        score += scoreExperiencia;
+        factores.experiencia = scoreExperiencia;
+        
+        // Aplicar multiplicadores de IA para casos especiales
+        let multiplicadorIA = 1.0;
+        
+        // Bonus para matching perfecto de especialidad
+        if (tratamientoDetectado.confianza >= 0.9 && compatibilidadTratamiento >= 0.8) {
+            multiplicadorIA += 0.1;
         }
         
-        return Math.min(1.0, Math.max(0, score));
+        // Penalty para sobrecarga de estudiante
+        if (casosActivos > casosNecesarios * 0.8) {
+            multiplicadorIA -= 0.05;
+        }
+        
+        // Bonus para casos urgentes con estudiantes experimentados
+        if (tratamientoDetectado.prioridad === 'urgente' && casosCompletados >= 15) {
+            multiplicadorIA += 0.05;
+        }
+        
+        const scoreFinal = Math.min(1.0, Math.max(0, score * multiplicadorIA));
+        
+        // Log para debugging (solo en desarrollo)
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`🧮 Score IA v3.0: ${scoreFinal.toFixed(3)} | Factores: ${JSON.stringify(factores)} | Mult: ${multiplicadorIA}`);
+        }
+        
+        return scoreFinal;
     }
     
     /**

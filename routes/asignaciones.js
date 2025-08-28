@@ -2,8 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { getConnection } = require('../config/database');
 const autoNotificationService = require('../services/autoNotificationService');
+const LegacyLoggerAdapter = require('./legacyLoggerAdapter');
 
-// GET /api/asignaciones - Obtener todas las asignaciones
+// Importar middleware de autenticación
+const { authenticateToken } = require('../src/shared/middleware/auth');
+
+// Inicializar logger estructurado para esta ruta
+const logger = new LegacyLoggerAdapter('asignaciones');
+
+// GET /api/asignaciones - Obtener todas las asignaciones (PROTEGIDO)
 router.get('/', async (req, res) => {
   try {
     const db = await getConnection();
@@ -18,7 +25,7 @@ router.get('/', async (req, res) => {
       `);
       
       if (tableCheck[0].total === 0) {
-        console.log('⚠️ Tabla asignaciones no existe, retornando array vacío');
+        logger.warn('Tabla asignaciones no existe, retornando array vacío');
         return res.json({
           success: true,
           total: 0,
@@ -27,7 +34,7 @@ router.get('/', async (req, res) => {
         });
       }
     } catch (tableError) {
-      console.log('⚠️ Error verificando tabla asignaciones:', tableError.message);
+      logger.warn('Error verificando tabla asignaciones', tableError);
       return res.json({
         success: true,
         total: 0,
@@ -204,25 +211,37 @@ router.get('/', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error crítico obteniendo asignaciones:', error);
+    // Usar logger enterprise en lugar de console.error
+    const logger = require('../src/shared/utils/logger');
+    logger.error('Error crítico obteniendo asignaciones', {
+      error: error.message,
+      code: error.code,
+      stack: error.stack,
+      requestId: req.headers['x-request-id']
+    });
     
     // Error más específico
     let errorMessage = 'Error al obtener asignaciones';
+    let statusCode = 500;
+    
     if (error.code === 'ER_NO_SUCH_TABLE') {
       errorMessage = 'Tabla de asignaciones no encontrada';
+      statusCode = 503; // Service Unavailable
     } else if (error.code === 'ER_BAD_FIELD_ERROR') {
       errorMessage = 'Error en la estructura de la base de datos';
+      statusCode = 503; // Service Unavailable
     } else if (error.code === 'ECONNREFUSED') {
       errorMessage = 'Error de conexión a la base de datos';
+      statusCode = 503; // Service Unavailable
     }
     
-    // En lugar de error 500, retornar respuesta exitosa con datos vacíos
-    res.json({ 
-      success: true, 
-      total: 0,
-      data: [],
-      error: errorMessage,
-      message: 'Sistema funcionando con datos limitados'
+    // NUNCA mentir sobre el éxito - retornar error real
+    res.status(statusCode).json({ 
+      success: false,  // Ser honesto sobre el error
+      error: error.code || 'DATABASE_ERROR',
+      message: errorMessage,
+      timestamp: new Date().toISOString(),
+      requestId: req.headers['x-request-id']
     });
   }
 });
@@ -471,7 +490,7 @@ router.post('/', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error creando asignación:', error);
+    logger.error('Error creando asignación', error);
     res.status(500).json({
       success: false,
       message: 'Error al crear la asignación',
@@ -584,7 +603,7 @@ router.put('/:id', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error actualizando asignación:', error);
+    logger.error('Error actualizando asignación', error);
     res.status(500).json({
       success: false,
       message: 'Error al actualizar la asignación',

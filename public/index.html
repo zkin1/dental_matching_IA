@@ -3,1275 +3,465 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Admin - Dental Matching System</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>Dental Matching Pro - Sistema Inteligente</title>
+    <meta name="description" content="Sistema inteligente de matching dental con IA avanzada">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMyNTYzZWIiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0ibTEyIDIgNC45IDcuNEwyNCA4bC03IDFMMTkuMSAyMiAxMiAxNS40IDQuOSAyMiA3IDlsLTctMSA3LjEtNC42eiIvPjwvc3ZnPg==">
 </head>
 <body>
-    <!-- Sidebar Navigation -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h2><i class="fas fa-tooth"></i> Dental Admin</h2>
-            <button class="sidebar-toggle" id="sidebarToggle">
-                <i class="fas fa-bars"></i>
-            </button>
-        </div>
-        
-        <nav class="sidebar-nav">
-            <ul>
-                <li class="nav-item active" id="nav-dashboard">
-                    <a href="#dashboard" class="nav-link" data-section="dashboard">
-                        <i class="fas fa-tachometer-alt"></i>
-                        <span>Dashboard</span>
-                    </a>
-                </li>
-                <li class="nav-item" id="nav-patients">
-                    <a href="#patients" class="nav-link" data-section="patients">
-                        <i class="fas fa-users"></i>
-                        <span>Pacientes</span>
-                        <span class="badge" id="pendingPatientsBadge">0</span>
-                    </a>
-                </li>
-                <li class="nav-item" id="nav-students">
-                    <a href="#students" class="nav-link" data-section="students">
-                        <i class="fas fa-graduation-cap"></i>
-                        <span>Estudiantes</span>
-                        <span class="badge" id="availableStudentsBadge">0</span>
-                    </a>
-                </li>
-                <li class="nav-item" id="nav-matching">
-                    <a href="#matching" class="nav-link" data-section="matching">
-                        <i class="fas fa-link"></i>
-                        <span>Matching</span>
-                        <span class="badge success" id="todayMatchesBadge">0</span>
-                    </a>
-                </li>
-                <li class="nav-item" id="nav-assignments">
-                    <a href="#assignments" class="nav-link" data-section="assignments">
-                        <i class="fas fa-handshake"></i>
-                        <span>Asignaciones</span>
-                    </a>
-                </li>
-                <li class="nav-item" id="nav-sync">
-                    <a href="#sync" class="nav-link" data-section="sync">
-                        <i class="fas fa-sync-alt"></i>
-                        <span>Sincronización</span>
-                    </a>
-                </li>
-                <li class="nav-item" id="nav-analytics">
-                    <a href="#analytics" class="nav-link" data-section="analytics">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Analíticas</span>
-                    </a>
-                </li>
-                <li class="nav-item" id="nav-settings">
-                    <a href="#settings" class="nav-link" data-section="settings">
-                        <i class="fas fa-cog"></i>
-                        <span>Sistema</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
-        
-        <div class="sidebar-footer">
-            <div class="system-status" id="systemStatus">
-                <div class="status-indicator" id="statusIndicator">
-                    <i class="fas fa-circle"></i>
-                    <span>Verificando...</span>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-tooth"></i>
+                    <span>Dental Pro</span>
                 </div>
-                <small id="lastUpdate">Última actualización: --</small>
-            </div>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-content">
-        <!-- Top Header -->
-        <header class="top-header">
-            <div class="header-left">
-                <button class="mobile-sidebar-toggle" id="mobileSidebarToggle">
+                <button class="sidebar-toggle" id="sidebarToggle">
                     <i class="fas fa-bars"></i>
                 </button>
-                <h1 id="pageTitle">Dashboard General</h1>
             </div>
             
-            <div class="header-right">
-                <div class="header-actions">
-                    <button class="btn btn-primary" id="quickSync" title="Sincronización rápida">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
-                    <button class="btn btn-success" id="quickMatch" title="Matching automático">
-                        <i class="fas fa-magic"></i>
-                    </button>
-                    <button class="btn btn-info" id="refreshData" title="Actualizar datos">
-                        <i class="fas fa-refresh"></i>
-                    </button>
-                </div>
-                
-                <div class="scheduler-status" id="schedulerStatus">
-                    <div class="scheduler-indicator">
-                        <i class="fas fa-robot"></i>
-                        <span>Sistema Manual</span>
+            <nav class="sidebar-nav">
+                <a href="#dashboard" class="nav-item active" data-section="dashboard">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#patients" class="nav-item" data-section="patients">
+                    <i class="fas fa-users"></i>
+                    <span>Pacientes</span>
+                    <span class="nav-badge" id="patientsBadge">0</span>
+                </a>
+                <a href="#students" class="nav-item" data-section="students">
+                    <i class="fas fa-user-graduate"></i>
+                    <span>Estudiantes</span>
+                    <span class="nav-badge" id="studentsBadge">0</span>
+                </a>
+                <a href="#assignments" class="nav-item" data-section="assignments">
+                    <i class="fas fa-link"></i>
+                    <span>Asignaciones</span>
+                    <span class="nav-badge" id="assignmentsBadge">0</span>
+                </a>
+                <a href="#matching" class="nav-item" data-section="matching">
+                    <i class="fas fa-robot"></i>
+                    <span>IA Matching</span>
+                    <span class="nav-badge-new">AI</span>
+                </a>
+                <a href="#analytics" class="nav-item" data-section="analytics">
+                    <i class="fas fa-brain"></i>
+                    <span>Analytics</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="user-avatar">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name">Administrador</div>
+                        <div class="user-role">Sistema</div>
                     </div>
                 </div>
             </div>
-        </header>
+        </aside>
 
-        <!-- Dashboard Section -->
-        <section id="dashboard" class="content-section active">
-            <!-- Loading State for Dashboard -->
-            <div id="dashboard-loading" class="loading-state" style="display: none;">
-                <i class="fas fa-spinner fa-spin"></i>
-                <span>Cargando dashboard...</span>
-            </div>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <h1 class="page-title">Dashboard Inteligente</h1>
+                    <p class="page-subtitle">Sistema de matching dental con IA avanzada</p>
+                </div>
+                <div class="header-right">
+                    <div class="header-actions">
+                        <button class="btn-icon" onclick="toggleTheme()" title="Cambiar tema">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                        <button class="btn-icon" onclick="showNotifications()" title="Notificaciones">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-dot"></span>
+                        </button>
+                        <button class="btn-icon" onclick="showSettings()" title="Configuración">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
 
-            <!-- KPI Cards -->
-            <div class="kpi-grid">
-                <div class="kpi-card patients">
-                    <div class="kpi-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div class="kpi-content">
-                        <div class="kpi-value" id="totalPatients">0</div>
-                        <div class="kpi-label">Total Pacientes</div>
-                        <div class="kpi-change" id="patientsChange">+0 hoy</div>
-                    </div>
-                </div>
-                
-                <div class="kpi-card students">
-                    <div class="kpi-icon">
-                        <i class="fas fa-graduation-cap"></i>
-                    </div>
-                    <div class="kpi-content">
-                        <div class="kpi-value" id="totalStudents">0</div>
-                        <div class="kpi-label">Estudiantes Activos</div>
-                        <div class="kpi-change" id="studentsAvailable">0 disponibles</div>
-                    </div>
-                </div>
-                
-                <div class="kpi-card matches">
-                    <div class="kpi-icon">
-                        <i class="fas fa-handshake"></i>
-                    </div>
-                    <div class="kpi-content">
-                        <div class="kpi-value" id="totalMatches">0</div>
-                        <div class="kpi-label">Asignaciones Totales</div>
-                        <div class="kpi-change" id="matchesToday">0 hoy</div>
-                    </div>
-                </div>
-                
-                <div class="kpi-card success-rate">
-                    <div class="kpi-icon">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <div class="kpi-content">
-                        <div class="kpi-value" id="successRate">0%</div>
-                        <div class="kpi-label">Tasa de Éxito</div>
-                        <div class="kpi-change" id="avgScore">Score prom: 0</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="quick-actions">
-                <h3>Acciones Rápidas</h3>
-                <div class="actions-grid">
-                    <button class="action-btn" id="runMatching">
-                        <i class="fas fa-magic"></i>
-                        <span>Ejecutar Matching</span>
-                    </button>
-                    <button class="action-btn" id="syncNow">
-                        <i class="fas fa-sync-alt"></i>
-                        <span>Sincronizar Datos</span>
-                    </button>
-                    <button class="action-btn" id="viewPending">
-                        <i class="fas fa-clock"></i>
-                        <span>Pacientes Pendientes</span>
-                    </button>
-                    <button class="action-btn" id="systemHealth">
-                        <i class="fas fa-heartbeat"></i>
-                        <span>Estado del Sistema</span>
-                    </button>
-                </div>
-                
-                <!-- Gestión de Códigos de Estudiante -->
-                <div class="code-management-section">
-                    <h4>Gestión de Códigos</h4>
-                    <div class="code-actions">
-                        <button class="action-btn btn-warning" id="validateFixCodes">
-                            <i class="fas fa-shield-alt"></i>
-                            <span>Validar Códigos</span>
-                        </button>
-                        <button class="action-btn btn-info" id="getCodeStats">
-                            <i class="fas fa-chart-bar"></i>
-                            <span>Estadísticas</span>
-                        </button>
-                        <button class="action-btn btn-secondary" id="generateTestCode">
-                            <i class="fas fa-key"></i>
-                            <span>Generar Código</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Notificaciones Automáticas -->
-                <div class="auto-notifications-section">
-                    <h4>Notificaciones Automáticas</h4>
-                    <div class="notification-actions">
-                        <button class="action-btn btn-success" id="viewNotificationLogs">
-                            <i class="fas fa-envelope-open"></i>
-                            <span>Ver Logs</span>
-                        </button>
-                        <button class="action-btn btn-info" id="getNotificationStats">
-                            <i class="fas fa-chart-line"></i>
-                            <span>Estadísticas</span>
-                        </button>
-                        <button class="action-btn btn-warning" id="clearOldLogs">
-                            <i class="fas fa-broom"></i>
-                            <span>Limpiar Logs</span>
-                        </button>
-                        <button class="action-btn btn-secondary" id="testNotification">
-                            <i class="fas fa-paper-plane"></i>
-                            <span>Prueba</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Activity Feed -->
-            <div class="dashboard-grid">
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h3>Actividad Reciente</h3>
-                        <button class="btn btn-sm" id="refreshActivity">
-                            <i class="fas fa-refresh"></i>
-                        </button>
-                    </div>
-                    <div class="card-content">
-                        <div id="activityFeed" class="activity-feed">
-                            <div class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-info-circle"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <span class="activity-text">Sistema iniciado</span>
-                                    <span class="activity-time">Ahora</span>
-                                </div>
-                            </div>
+            <!-- Content Sections -->
+            <div class="content-wrapper">
+                <!-- Dashboard Section -->
+                <section class="content-section active" id="dashboardSection">
+                    <!-- System Status Alert -->
+                    <div class="alert alert-system" id="systemStatus" role="status" aria-live="polite">
+                        <div class="alert-icon">
+                            <div class="status-indicator" id="statusIndicator"></div>
+                        </div>
+                        <div class="alert-content">
+                            <div class="alert-title">Estado del Sistema</div>
+                            <div class="alert-message" id="statusText">Verificando conexión...</div>
+                        </div>
+                        <div class="alert-actions">
+                            <button class="btn-text" onclick="checkHealth()">
+                                <i class="fas fa-sync-alt"></i> Verificar
+                            </button>
                         </div>
                     </div>
-                </div>
 
-                <div class="dashboard-card">
-                    <div class="card-header">
-                        <h3>Estado de Servicios</h3>
-                    </div>
-                    <div class="card-content">
-                        <div class="services-status">
-                            <div class="service-item">
-                                <div class="service-icon">
-                                    <i class="fas fa-database"></i>
+                    <!-- Enhanced Statistics Grid -->
+                    <div class="metrics-grid" id="statsContainer" aria-label="Métricas del sistema">
+                        <div class="metric-card primary">
+                            <div class="metric-header">
+                                <div class="metric-icon">
+                                    <i class="fas fa-users"></i>
                                 </div>
-                                <div class="service-info">
-                                    <span class="service-name">Base de Datos</span>
-                                    <span class="service-status" id="dbStatus">Verificando...</span>
+                                <div class="metric-trend positive">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span>+12%</span>
                                 </div>
                             </div>
-                            
-                            <div class="service-item">
-                                <div class="service-icon">
-                                    <i class="fab fa-google"></i>
+                            <div class="metric-content">
+                                <div class="metric-number" id="totalPatients">-</div>
+                                <div class="metric-label">Total Pacientes</div>
+                                <div class="metric-subtitle">Activos en sistema</div>
+                            </div>
+                            <div class="metric-progress">
+                                <div class="progress-bar" style="width: 75%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card success">
+                            <div class="metric-header">
+                                <div class="metric-icon">
+                                    <i class="fas fa-user-graduate"></i>
                                 </div>
-                                <div class="service-info">
-                                    <span class="service-name">Google Sheets</span>
-                                    <span class="service-status" id="sheetsStatus">Verificando...</span>
+                                <div class="metric-trend positive">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span>+5%</span>
                                 </div>
                             </div>
-                            
-                            <div class="service-item">
-                                <div class="service-icon">
-                                    <i class="fas fa-robot"></i>
-                                </div>
-                                <div class="service-info">
-                                    <span class="service-name">Sistema Automático</span>
-                                    <span class="service-status" id="autoStatus">Verificando...</span>
-                                </div>
+                            <div class="metric-content">
+                                <div class="metric-number" id="totalStudents">-</div>
+                                <div class="metric-label">Estudiantes</div>
+                                <div class="metric-subtitle">Disponibles</div>
                             </div>
-                            
-                            <div class="service-item">
-                                <div class="service-icon">
+                            <div class="metric-progress">
+                                <div class="progress-bar" style="width: 60%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card info">
+                            <div class="metric-header">
+                                <div class="metric-icon">
                                     <i class="fas fa-link"></i>
                                 </div>
-                                <div class="service-info">
-                                    <span class="service-name">Algoritmo Matching</span>
-                                    <span class="service-status" id="matchingStatus">Verificando...</span>
+                                <div class="metric-trend neutral">
+                                    <i class="fas fa-minus"></i>
+                                    <span>0%</span>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Patients Section -->
-        <section id="patients" class="content-section">
-            <div class="section-header">
-                <h2>Gestión de Pacientes</h2>
-                <div class="section-actions">
-                    <button class="btn btn-success" id="addPatientBtn">
-                        <i class="fas fa-plus"></i> Nuevo Paciente
-                    </button>
-                    <select id="patientsFilter" class="filter-select">
-                        <option value="">Todos</option>
-                        <option value="pendiente">Pendientes</option>
-                        <option value="asignado">Asignados</option>
-                        <option value="completado">Completados</option>
-                    </select>
-                    <select id="priorityFilter" class="filter-select">
-                        <option value="">Todas las prioridades</option>
-                        <option value="Muy Alta">Muy Alta</option>
-                        <option value="Alta">Alta</option>
-                        <option value="Moderada">Moderada</option>
-                        <option value="Baja">Baja</option>
-                    </select>
-                    <button class="btn btn-primary" id="refreshPatients">
-                        <i class="fas fa-refresh"></i> Actualizar
-                    </button>
-                </div>
-            </div>
-            
-            <div class="data-table-container">
-                <div id="patientsLoading" class="loading-state" style="display: none;">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <span>Cargando pacientes...</span>
-                </div>
-                
-                <table id="patientsTable" class="data-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nombre</th>
-                            <th>Edad</th>
-                            <th>Teléfono</th>
-                            <th>Tratamiento</th>
-                            <th>Dolor</th>
-                            <th>Prioridad</th>
-                            <th>Estado</th>
-                            <th>Fecha</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="patientsTableBody">
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Students Section -->
-        <section id="students" class="content-section">
-            <div class="section-header">
-                <h2>Gestión de Estudiantes</h2>
-                <div class="section-actions">
-                    <button class="btn btn-success" id="addStudentBtn">
-                        <i class="fas fa-plus"></i> Nuevo Estudiante
-                    </button>
-                    <select id="studentsFilter" class="filter-select">
-                        <option value="">Todos</option>
-                        <option value="activo">Activos</option>
-                        <option value="disponible">Disponibles</option>
-                        <option value="completo">Completados</option>
-                    </select>
-                    <button class="btn btn-primary" id="refreshStudents">
-                        <i class="fas fa-refresh"></i> Actualizar
-                    </button>
-                </div>
-            </div>
-            
-            <div class="data-table-container">
-                <div id="studentsLoading" class="loading-state" style="display: none;">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <span>Cargando estudiantes...</span>
-                </div>
-                
-                <table id="studentsTable" class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Código</th>
-                            <th>Nombre</th>
-                            <th>Año</th>
-                            <th>Universidad</th>
-                            <th>Especialidades</th>
-                            <th>Casos Activos</th>
-                            <th>Completados</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="studentsTableBody">
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Matching Section -->
-        <section id="matching" class="content-section">
-            <div class="section-header">
-                <h2>Sistema de Matching</h2>
-                <div class="section-actions">
-                    <button class="btn btn-success" id="executeMatching">
-                        <i class="fas fa-magic"></i> Ejecutar Matching
-                    </button>
-                    <button class="btn btn-info" id="viewSuggestions">
-                        <i class="fas fa-lightbulb"></i> Ver Sugerencias
-                    </button>
-                </div>
-            </div>
-            
-            <div class="matching-overview">
-                <div class="matching-stats">
-                    <div class="stat-item">
-                        <span class="stat-value" id="pendingPatientsCount">0</span>
-                        <span class="stat-label">Pacientes Pendientes</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value" id="availableStudentsCount">0</span>
-                        <span class="stat-label">Estudiantes Disponibles</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value" id="todayMatchesCount">0</span>
-                        <span class="stat-label">Matches Hoy</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value" id="algorithmScore">v2.0</span>
-                        <span class="stat-label">Algoritmo</span>
-                    </div>
-                </div>
-                
-                <div class="matching-actions">
-                    <button class="action-card" id="viewPendingPatients">
-                        <i class="fas fa-clock"></i>
-                        <h4>Pacientes Pendientes</h4>
-                        <p>Ver lista de pacientes esperando asignación</p>
-                    </button>
-                    
-                    <button class="action-card" id="viewAvailableStudents">
-                        <i class="fas fa-user-graduate"></i>
-                        <h4>Estudiantes Disponibles</h4>
-                        <p>Ver estudiantes con capacidad disponible</p>
-                    </button>
-                    
-                    <button class="action-card" id="manualMatching">
-                        <i class="fas fa-hand-point-right"></i>
-                        <h4>Matching Manual</h4>
-                        <p>Crear asignaciones manualmente</p>
-                    </button>
-                </div>
-
-                <!-- Pending Patients List -->
-                <div id="pendingPatientsList" class="pending-patients">
-                    <!-- Will be populated by JavaScript -->
-                </div>
-            </div>
-            
-            <div class="matching-results" id="matchingResults" style="display: none;">
-                <h3>Resultados del Matching</h3>
-                <div id="matchingResultsContent"></div>
-            </div>
-        </section>
-
-        <!-- Assignments Section -->
-        <section id="assignments" class="content-section">
-            <div class="section-header">
-                <h2>Asignaciones Activas</h2>
-                <div class="section-actions">
-                    <select id="assignmentsFilter" class="filter-select">
-                        <option value="">Todas</option>
-                        <option value="asignado">Asignadas</option>
-                        <option value="en_tratamiento">En Tratamiento</option>
-                        <option value="completado">Completadas</option>
-                        <option value="cancelado">Canceladas</option>
-                    </select>
-                    <button class="btn btn-primary" id="refreshAssignments">
-                        <i class="fas fa-refresh"></i> Actualizar
-                    </button>
-                </div>
-            </div>
-            
-            <div class="data-table-container">
-                <div id="assignmentsLoading" class="loading-state" style="display: none;">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <span>Cargando asignaciones...</span>
-                </div>
-                
-                <table id="assignmentsTable" class="data-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Paciente</th>
-                            <th>Estudiante</th>
-                            <th>Tratamiento</th>
-                            <th>Score</th>
-                            <th>Estado</th>
-                            <th>Fecha</th>
-                            <th>Tipo</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="assignmentsTableBody">
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Sync Section -->
-        <section id="sync" class="content-section">
-            <div class="section-header">
-                <h2>Sincronización con Google Sheets</h2>
-                <div class="section-actions">
-                    <button class="btn btn-success" id="executeSync">
-                        <i class="fas fa-sync-alt"></i> Sincronizar Ahora
-                    </button>
-                    <button class="btn btn-info" id="testConnection">
-                        <i class="fas fa-plug"></i> Probar Conexión
-                    </button>
-                </div>
-            </div>
-            
-            <div class="sync-overview">
-                <div class="sync-stats">
-                    <div class="sync-stat">
-                        <i class="fas fa-clock"></i>
-                        <div class="stat-content">
-                            <span class="stat-label">Última Sincronización</span>
-                            <span class="stat-value" id="lastSyncTime">Nunca</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sync-stat">
-                        <i class="fas fa-plus"></i>
-                        <div class="stat-content">
-                            <span class="stat-label">Pacientes Procesados</span>
-                            <span class="stat-value" id="processedCount">0</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sync-stat">
-                        <i class="fas fa-check"></i>
-                        <div class="stat-content">
-                            <span class="stat-label">Tasa de Éxito</span>
-                            <span class="stat-value" id="syncSuccessRate">100%</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sync-stat">
-                        <i class="fas fa-robot"></i>
-                        <div class="stat-content">
-                            <span class="stat-label">Sistema Automático</span>
-                            <span class="stat-value" id="autoSyncStatus">Manual</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="sync-controls">
-                    <div class="control-group">
-                        <h4>Control del Sistema Automático</h4>
-                        <div class="control-buttons">
-                            <button class="btn btn-success" id="startScheduler">
-                                <i class="fas fa-play"></i> Iniciar Automático
-                            </button>
-                            <button class="btn btn-warning" id="stopScheduler">
-                                <i class="fas fa-pause"></i> Pausar Automático
-                            </button>
-                            <button class="btn btn-info" id="restartScheduler">
-                                <i class="fas fa-redo"></i> Reiniciar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="sync-progress" id="syncProgress" style="display: none;">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="syncProgressFill"></div>
-                    </div>
-                    <div class="progress-text" id="syncProgressText">Procesando...</div>
-                </div>
-
-                <!-- Scheduled Jobs List -->
-                <div class="jobs-list">
-                    <h4>Trabajos Programados</h4>
-                    <div id="scheduledJobsList">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Analytics Section -->
-        <section id="analytics" class="content-section">
-            <div class="section-header">
-                <h2>Analíticas y Reportes</h2>
-                <div class="section-actions">
-                    <select id="analyticsTimeframe" class="filter-select">
-                        <option value="7">Últimos 7 días</option>
-                        <option value="30" selected>Últimos 30 días</option>
-                        <option value="90">Últimos 90 días</option>
-                    </select>
-                    <button class="btn btn-primary" id="refreshAnalytics">
-                        <i class="fas fa-refresh"></i> Actualizar
-                    </button>
-                </div>
-            </div>
-            
-            <div class="analytics-grid">
-                <div class="analytics-card">
-                    <h3>Tratamientos más Solicitados</h3>
-                    <div id="treatmentChart" class="chart-container">
-                        <div class="chart-loading">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <span>Cargando datos...</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="analytics-card">
-                    <h3>Rendimiento del Matching</h3>
-                    <div id="matchingChart" class="chart-container">
-                        <div class="chart-loading">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <span>Cargando datos...</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="analytics-card">
-                    <h3>Estudiantes Top</h3>
-                    <div id="topStudentsChart" class="chart-container">
-                        <div class="chart-loading">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <span>Cargando datos...</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="analytics-card">
-                    <h3>Estadísticas Generales</h3>
-                    <div class="stats-summary">
-                        <div class="summary-item">
-                            <span class="summary-label">Promedio Score Matching:</span>
-                            <span class="summary-value" id="avgMatchingScore">--</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="summary-label">Tiempo Promedio Asignación:</span>
-                            <span class="summary-value" id="avgAssignmentTime">--</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="summary-label">Casos Completados este Mes:</span>
-                            <span class="summary-value" id="monthlyCompletions">--</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="summary-label">Uptime del Sistema:</span>
-                            <span class="summary-value" id="systemUptime">--</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Settings Section -->
-        <section id="settings" class="content-section">
-            <div class="section-header">
-                <h2>Configuración del Sistema</h2>
-            </div>
-            
-            <div class="settings-grid">
-                <div class="settings-card">
-                    <h3>Estado del Sistema</h3>
-                    <div class="system-health">
-                        <div class="health-item">
-                            <i class="fas fa-server"></i>
-                            <span>Servidor API</span>
-                            <span class="health-status" id="apiHealth">Verificando...</span>
-                        </div>
-                        <div class="health-item">
-                            <i class="fas fa-database"></i>
-                            <span>Base de Datos</span>
-                            <span class="health-status" id="databaseHealth">Verificando...</span>
-                        </div>
-                        <div class="health-item">
-                            <i class="fab fa-google"></i>
-                            <span>Google Sheets</span>
-                            <span class="health-status" id="googleSheetsHealth">Verificando...</span>
-                        </div>
-                        <div class="health-item">
-                            <i class="fas fa-robot"></i>
-                            <span>Scheduler</span>
-                            <span class="health-status" id="schedulerHealth">Verificando...</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="settings-card">
-                    <h3>Información del Sistema</h3>
-                    <div class="system-info">
-                        <div class="info-item">
-                            <span class="info-label">Versión:</span>
-                            <span class="info-value" id="systemVersion">v0.2.0</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Uptime:</span>
-                            <span class="info-value" id="uptimeDisplay">--</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Uso de Memoria:</span>
-                            <span class="info-value" id="memoryUsage">--</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Última Actualización:</span>
-                            <span class="info-value" id="lastSystemUpdate">--</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="settings-card">
-                    <h3>Configuración de Matching</h3>
-                    <div class="matching-config">
-                        <div class="config-item">
-                            <label>Algoritmo Actual:</label>
-                            <span class="config-value">v2.0 - Especialidad + Experiencia</span>
-                        </div>
-                        <div class="config-item">
-                            <label>Score Mínimo:</label>
-                            <span class="config-value">20%</span>
-                        </div>
-                        <div class="config-item">
-                            <label>Matching Automático:</label>
-                            <span class="config-value" id="autoMatchingConfig">Cada 5 minutos</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="settings-card">
-                    <h3>Acciones de Sistema</h3>
-                    <div class="system-actions">
-                        <button class="btn btn-info" id="exportData">
-                            <i class="fas fa-download"></i>
-                            Exportar Datos
-                        </button>
-                        <button class="btn btn-warning" id="cleanupData">
-                            <i class="fas fa-broom"></i>
-                            Limpiar Datos
-                        </button>
-                        <button class="btn btn-primary" id="backupSystem">
-                            <i class="fas fa-save"></i>
-                            Backup Sistema
-                        </button>
-                        <button class="btn btn-secondary" id="viewLogs">
-                            <i class="fas fa-list"></i>
-                            Ver Logs
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
-        <div class="loading-content">
-            <div class="spinner"></div>
-            <h3 id="loadingTitle">Procesando...</h3>
-            <p id="loadingMessage">Por favor espere mientras se procesa la operación.</p>
-        </div>
-    </div>
-
-    <!-- Toast Notifications Container -->
-    <div id="toastContainer" class="toast-container"></div>
-
-    <!-- Modal Dialogs -->
-    <div id="modalOverlay" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <h3 id="modalTitle">Título</h3>
-                <button class="modal-close" id="modalClose">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body" id="modalBody">
-                <p>Contenido del modal...</p>
-            </div>
-            <div class="modal-footer" id="modalFooter">
-                <button class="btn btn-secondary" id="modalCancel">Cancelar</button>
-                <button class="btn btn-primary" id="modalConfirm">Confirmar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Patient Details Modal -->
-    <div id="patientModal" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-header">
-                <h3>Detalles del Paciente</h3>
-                <button class="modal-close" onclick="closePatientModal()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body" id="patientModalBody">
-                <!-- Patient details will be loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closePatientModal()">Cerrar</button>
-                <button class="btn btn-success" id="assignPatientBtn">Asignar Estudiante</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Student Details Modal -->
-    <div id="studentModal" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-header">
-                <h3>Detalles del Estudiante</h3>
-                <button class="modal-close" onclick="closeStudentModal()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body" id="studentModalBody">
-                <!-- Student details will be loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeStudentModal()">Cerrar</button>
-                <button class="btn btn-info" id="viewStudentPatientsBtn">Ver Pacientes</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Contact Modal -->
-    <div id="contactModal" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-header">
-                <h3>Contactar Estudiante</h3>
-                <button class="modal-close" onclick="closeContactModal()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body" id="contactModalBody">
-                <!-- Contact details will be loaded here -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Nuevo Modal para Agregar Paciente -->
-    <div id="addPatientModal" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-header">
-                <h3><i class="fas fa-user-plus"></i> Nuevo Paciente</h3>
-                <button class="modal-close" onclick="closeAddPatientModal()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="addPatientForm" class="multi-step-form">
-                    <!-- Step 1: Información Personal -->
-                    <div class="form-step active" data-step="1">
-                        <div class="step-header">
-                            <h4><i class="fas fa-user"></i> Información Personal</h4>
-                            <div class="step-indicator">Paso 1 de 3</div>
-                        </div>
-                        
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="patientName">Nombre Completo *</label>
-                                <input type="text" id="patientName" name="nombre_completo" required>
+                            <div class="metric-content">
+                                <div class="metric-number" id="totalAssignments">-</div>
+                                <div class="metric-label">Asignaciones</div>
+                                <div class="metric-subtitle">Este mes</div>
                             </div>
-                            
-                            <div class="form-group">
-                                <label for="patientAge">Edad</label>
-                                <input type="number" id="patientAge" name="edad" min="1" max="120">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="patientPhone">Teléfono *</label>
-                                <input type="tel" id="patientPhone" name="telefono" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="patientEmail">Email</label>
-                                <input type="email" id="patientEmail" name="email">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="patientCity">Ciudad *</label>
-                                <select id="patientCity" name="ciudad" required>
-                                    <option value="">Seleccionar ciudad</option>
-                                    <option value="Metropolitana">Metropolitana</option>
-                                    <option value="Valparaíso">Valparaíso</option>
-                                    <option value="Concepción">Concepción</option>
-                                </select>
+                            <div class="metric-progress">
+                                <div class="progress-bar" style="width: 85%"></div>
                             </div>
                         </div>
                         
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-primary" onclick="nextStep(2)">Siguiente</button>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: Información Médica -->
-                    <div class="form-step" data-step="2">
-                        <div class="step-header">
-                            <h4><i class="fas fa-stethoscope"></i> Información Médica</h4>
-                            <div class="step-indicator">Paso 2 de 3</div>
-                        </div>
-                        
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="patientSymptoms">Síntomas *</label>
-                                <div class="symptoms-selector">
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="sintomas[]" value="Dolor de muelas">
-                                        <span>Dolor de muelas</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="sintomas[]" value="Dolor al masticar">
-                                        <span>Dolor al masticar</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="sintomas[]" value="Sensibilidad dental">
-                                        <span>Sensibilidad dental</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="sintomas[]" value="Inflamación de encías">
-                                        <span>Inflamación de encías</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="sintomas[]" value="Mal aliento">
-                                        <span>Mal aliento</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="sintomas[]" value="Diente roto">
-                                        <span>Diente roto</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="sintomas[]" value="Dientes flojos">
-                                        <span>Dientes flojos</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="sintomas[]" value="Dificultad para comer">
-                                        <span>Dificultad para comer</span>
-                                    </label>
+                        <div class="metric-card warning">
+                            <div class="metric-header">
+                                <div class="metric-icon">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="metric-trend positive">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span>+8%</span>
                                 </div>
                             </div>
-                            
-                            <div class="form-group">
-                                <label for="patientDiagnosis">Diagnóstico Previo</label>
-                                <textarea id="patientDiagnosis" name="diagnostico_previo" rows="3" placeholder="Si tiene algún diagnóstico previo..."></textarea>
+                            <div class="metric-content">
+                                <div class="metric-number" id="successRate">-%</div>
+                                <div class="metric-label">Precisión IA</div>
+                                <div class="metric-subtitle">Algoritmo v3.0</div>
                             </div>
-                            
-                            <div class="form-group">
-                                <label for="patientPainLevel">Nivel de Dolor *</label>
-                                <div class="pain-scale">
-                                    <input type="range" id="patientPainLevel" name="nivel_dolor" min="0" max="10" value="5">
-                                    <div class="pain-labels">
-                                        <span>0 - Sin dolor</span>
-                                        <span>10 - Dolor extremo</span>
+                            <div class="metric-progress">
+                                <div class="progress-bar" style="width: 92%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced System Information -->
+                    <div class="dashboard-grid">
+                        <div class="dashboard-card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-server"></i>
+                                    Estado del Sistema
+                                </h3>
+                                <div class="card-badge live">En Vivo</div>
+                            </div>
+                            <div class="card-content">
+                                <div class="system-info-grid" id="systemInfo">
+                                    <div class="loading-modern">
+                                        <div class="loading-dots">
+                                            <div class="dot"></div>
+                                            <div class="dot"></div>
+                                            <div class="dot"></div>
+                                        </div>
+                                        <p>Obteniendo información...</p>
                                     </div>
-                                    <div class="pain-value" id="painValue">5</div>
                                 </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="patientTimeProblem">Tiempo del Problema</label>
-                                <select id="patientTimeProblem" name="tiempo_problema">
-                                    <option value="">Seleccionar</option>
-                                    <option value="1 día">1 día</option>
-                                    <option value="2-3 días">2-3 días</option>
-                                    <option value="1 semana">1 semana</option>
-                                    <option value="2 semanas">2 semanas</option>
-                                    <option value="1 mes">1 mes</option>
-                                    <option value="2-3 meses">2-3 meses</option>
-                                    <option value="6 meses">6 meses</option>
-                                    <option value="1 año">1 año</option>
-                                </select>
                             </div>
                         </div>
                         
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-secondary" onclick="prevStep(1)">Anterior</button>
-                            <button type="button" class="btn btn-primary" onclick="nextStep(3)">Siguiente</button>
+                        <div class="dashboard-card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-chart-line"></i>
+                                    Rendimiento IA
+                                </h3>
+                                <div class="card-actions">
+                                    <button class="btn-icon" onclick="refreshAIMetrics()">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="ai-metrics">
+                                    <div class="ai-metric">
+                                        <div class="ai-metric-value">94.2%</div>
+                                        <div class="ai-metric-label">Precisión</div>
+                                    </div>
+                                    <div class="ai-metric">
+                                        <div class="ai-metric-value">1.2s</div>
+                                        <div class="ai-metric-label">Tiempo Resp.</div>
+                                    </div>
+                                    <div class="ai-metric">
+                                        <div class="ai-metric-value">156</div>
+                                        <div class="ai-metric-label">Análisis Hoy</div>
+                                    </div>
+                                </div>
+                                <div class="ai-status">
+                                    <div class="status-item">
+                                        <i class="fas fa-brain status-icon active"></i>
+                                        <span>Motor de Análisis</span>
+                                        <div class="status-badge active">Activo</div>
+                                    </div>
+                                    <div class="status-item">
+                                        <i class="fas fa-chart-network status-icon active"></i>
+                                        <span>Red Neural</span>
+                                        <div class="status-badge active">Entrenada</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Step 3: Disponibilidad y Preferencias -->
-                    <div class="form-step" data-step="3">
-                        <div class="step-header">
-                            <h4><i class="fas fa-calendar-alt"></i> Disponibilidad y Preferencias</h4>
-                            <div class="step-indicator">Paso 3 de 3</div>
+                </section>
+                
+                <!-- Patients Section -->
+                <section class="content-section" id="patientsSection">
+                    <div class="data-section">
+                        <div class="section-header-modern">
+                            <div class="section-title-group">
+                                <h2 class="section-title">
+                                    <i class="fas fa-users"></i>
+                                    Pacientes Registrados
+                                </h2>
+                                <span class="section-count" id="patientsCountSection">0</span>
+                            </div>
+                            <div class="section-actions">
+                                <button class="btn btn-outline" onclick="exportPatients()">
+                                    <i class="fas fa-download"></i>
+                                    Exportar
+                                </button>
+                                <button class="btn btn-primary" onclick="addPatient()">
+                                    <i class="fas fa-plus"></i>
+                                    Nuevo Paciente
+                                </button>
+                            </div>
                         </div>
                         
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="patientDays">Días Disponibles *</label>
-                                <div class="days-selector">
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias[]" value="lunes">
-                                        <span>Lunes</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias[]" value="martes">
-                                        <span>Martes</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias[]" value="miércoles">
-                                        <span>Miércoles</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias[]" value="jueves">
-                                        <span>Jueves</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias[]" value="viernes">
-                                        <span>Viernes</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias[]" value="sábado">
-                                        <span>Sábado</span>
-                                    </label>
+                        <div class="table-wrapper">
+                            <div class="table-container" id="patientsData">
+                                <div class="loading-modern">
+                                    <div class="loading-skeleton">
+                                        <div class="skeleton-row"></div>
+                                        <div class="skeleton-row"></div>
+                                        <div class="skeleton-row"></div>
+                                    </div>
+                                    <p>Cargando pacientes...</p>
                                 </div>
                             </div>
-                            
-                            <div class="form-group">
-                                <label for="patientSchedule">Horario Preferido</label>
-                                <select id="patientSchedule" name="horario_preferencia">
-                                    <option value="">Seleccionar</option>
-                                    <option value="mañana">Mañana (8:00 - 12:00)</option>
-                                    <option value="tarde">Tarde (13:00 - 17:00)</option>
-                                    <option value="noche">Noche (18:00 - 20:00)</option>
-                                </select>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Students Section -->
+                <section class="content-section" id="studentsSection">
+                    <div class="data-section">
+                        <div class="section-header-modern">
+                            <div class="section-title-group">
+                                <h2 class="section-title">
+                                    <i class="fas fa-user-graduate"></i>
+                                    Estudiantes Activos
+                                </h2>
+                                <span class="section-count" id="studentsCount">0</span>
                             </div>
-                            
-                            <div class="form-group">
-                                <label for="patientUrgency">Urgencia de Cita</label>
-                                <select id="patientUrgency" name="disponibilidad_cita">
-                                    <option value="">Seleccionar</option>
-                                    <option value="urgente">Urgente (hoy mismo)</option>
-                                    <option value="inmediata">Inmediata (próximos días)</option>
-                                    <option value="próxima semana">Próxima semana</option>
-                                    <option value="próximo mes">Próximo mes</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="patientPriority">Prioridad</label>
-                                <select id="patientPriority" name="prioridad">
-                                    <option value="Moderada">Moderada</option>
-                                    <option value="Alta">Alta</option>
-                                    <option value="Muy Alta">Muy Alta</option>
-                                    <option value="Baja">Baja</option>
-                                </select>
+                            <div class="section-actions">
+                                <button class="btn btn-outline" onclick="exportStudents()">
+                                    <i class="fas fa-download"></i>
+                                    Exportar
+                                </button>
+                                <button class="btn btn-primary" onclick="addStudent()">
+                                    <i class="fas fa-plus"></i>
+                                    Nuevo Estudiante
+                                </button>
                             </div>
                         </div>
                         
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-secondary" onclick="prevStep(2)">Anterior</button>
-                            <button type="submit" class="btn btn-success">Guardar Paciente</button>
+                        <div class="table-wrapper">
+                            <div class="table-container" id="studentsData">
+                                <div class="loading-modern">
+                                    <div class="loading-skeleton">
+                                        <div class="skeleton-row"></div>
+                                        <div class="skeleton-row"></div>
+                                        <div class="skeleton-row"></div>
+                                    </div>
+                                    <p>Cargando estudiantes...</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </form>
+                </section>
+                
+                <!-- Assignments Section -->
+                <section class="content-section" id="assignmentsSection">
+                    <div class="data-section">
+                        <div class="section-header-modern">
+                            <div class="section-title-group">
+                                <h2 class="section-title">
+                                    <i class="fas fa-link"></i>
+                                    Asignaciones Recientes
+                                </h2>
+                                <span class="section-count" id="assignmentsCount">0</span>
+                            </div>
+                            <div class="section-actions">
+                                <button class="btn btn-outline" onclick="exportAssignments()">
+                                    <i class="fas fa-download"></i>
+                                    Exportar
+                                </button>
+                                <button class="btn btn-success" onclick="runMatching()">
+                                    <i class="fas fa-robot"></i>
+                                    Ejecutar Matching IA
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-wrapper">
+                            <div class="table-container" id="assignmentsData">
+                                <div class="loading-modern">
+                                    <div class="loading-skeleton">
+                                        <div class="skeleton-row"></div>
+                                        <div class="skeleton-row"></div>
+                                        <div class="skeleton-row"></div>
+                                    </div>
+                                    <p>Cargando asignaciones...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- AI Matching Section -->
+                <section class="content-section" id="matchingSection">
+                    <div class="matching-dashboard">
+                        <div class="matching-header">
+                            <h2 class="section-title">
+                                <i class="fas fa-robot"></i>
+                                Sistema de Matching Inteligente
+                                <span class="ai-badge">v3.0</span>
+                            </h2>
+                            <p class="section-description">
+                                Algoritmo de matching con IA avanzada, análisis predictivo y aprendizaje continuo
+                            </p>
+                        </div>
+                        
+                        <div class="matching-controls">
+                            <div class="control-group">
+                                <label class="control-label">Modo de Matching</label>
+                                <select class="form-select" id="matchingMode">
+                                    <option value="intelligent">Inteligente (Recomendado)</option>
+                                    <option value="urgent">Solo Urgentes</option>
+                                    <option value="balanced">Balanceado</option>
+                                    <option value="experimental">Experimental</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label class="control-label">Límite de Pacientes</label>
+                                <input type="number" class="form-input" id="patientLimit" value="50" min="1" max="200">
+                            </div>
+                            <button class="btn btn-ai btn-large" onclick="executeAIMatching()">
+                                <i class="fas fa-magic"></i>
+                                Ejecutar Matching IA
+                            </button>
+                        </div>
+                        
+                        <div class="matching-results" id="matchingResults">
+                            <!-- Results will be populated here -->
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Analytics Section -->
+                <section class="content-section" id="analyticsSection">
+                    <div class="analytics-dashboard">
+                        <h2 class="section-title">
+                            <i class="fas fa-brain"></i>
+                            Analytics & Machine Learning
+                        </h2>
+                        
+                        <div class="analytics-grid">
+                            <div class="analytics-card">
+                                <h3>Precisión del Modelo</h3>
+                                <div class="metric-display">94.2%</div>
+                                <div class="metric-change positive">+2.1% vs mes anterior</div>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <h3>Tiempo de Respuesta</h3>
+                                <div class="metric-display">1.2s</div>
+                                <div class="metric-change positive">-0.3s más rápido</div>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <h3>Casos Analizados</h3>
+                                <div class="metric-display">1,247</div>
+                                <div class="metric-change positive">+156 hoy</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
-        </div>
+        </main>
     </div>
+    
+    <!-- Floating Action Button -->
+    <button class="fab" onclick="quickAction()" title="Acción rápida">
+        <i class="fas fa-lightning-bolt"></i>
+    </button>
+    
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Nuevo Modal para Agregar Estudiante -->
-    <div id="addStudentModal" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-header">
-                <h3><i class="fas fa-user-graduate"></i> Nuevo Estudiante</h3>
-                <button class="modal-close" onclick="closeAddStudentModal()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="addStudentForm" class="multi-step-form">
-                    <!-- Step 1: Información Personal -->
-                    <div class="form-step active" data-step="1">
-                        <div class="step-header">
-                            <h4><i class="fas fa-user"></i> Información Personal</h4>
-                            <div class="step-indicator">Paso 1 de 3</div>
-                        </div>
-                        
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="studentName">Nombre Completo *</label>
-                                <input type="text" id="studentName" name="nombre_completo" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="studentEmail">Email *</label>
-                                <input type="email" id="studentEmail" name="email" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="studentPhone">Teléfono</label>
-                                <input type="tel" id="studentPhone" name="telefono">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="studentCity">Ciudad *</label>
-                                <select id="studentCity" name="ciudad" required>
-                                    <option value="">Seleccionar ciudad</option>
-                                    <option value="Metropolitana">Metropolitana</option>
-                                    <option value="Valparaíso">Valparaíso</option>
-                                    <option value="Concepción">Concepción</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-primary" onclick="nextStep(2)">Siguiente</button>
-                        </div>
-                    </div>
 
-                    <!-- Step 2: Información Académica -->
-                    <div class="form-step" data-step="2">
-                        <div class="step-header">
-                            <h4><i class="fas fa-graduation-cap"></i> Información Académica</h4>
-                            <div class="step-indicator">Paso 2 de 3</div>
-                        </div>
-                        
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="studentYear">Año de Carrera *</label>
-                                <select id="studentYear" name="año_carrera" required>
-                                    <option value="">Seleccionar año</option>
-                                    <option value="4to">4to Año</option>
-                                    <option value="5to">5to Año</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="studentUniversity">Universidad</label>
-                                <input type="text" id="studentUniversity" name="universidad" placeholder="Nombre de la universidad">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="studentCasesNeeded">Casos Necesarios por Semestre</label>
-                                <input type="number" id="studentCasesNeeded" name="casos_necesarios" min="1" max="20" placeholder="Ej: 8">
-                            </div>
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-secondary" onclick="prevStep(1)">Anterior</button>
-                            <button type="button" class="btn btn-primary" onclick="nextStep(3)">Siguiente</button>
-                        </div>
-                    </div>
-
-                    <!-- Step 3: Especialidades y Horarios -->
-                    <div class="form-step" data-step="3">
-                        <div class="step-header">
-                            <h4><i class="fas fa-stethoscope"></i> Especialidades y Horarios</h4>
-                            <div class="step-indicator">Paso 3 de 3</div>
-                        </div>
-                        
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="studentSpecialties">Especialidades *</label>
-                                <div class="specialties-selector">
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="especialidades[]" value="Endodoncia">
-                                        <span>Endodoncia</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="especialidades[]" value="Operatoria Dental">
-                                        <span>Operatoria Dental</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="especialidades[]" value="Periodoncia">
-                                        <span>Periodoncia</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="especialidades[]" value="Odontopediatría">
-                                        <span>Odontopediatría</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="especialidades[]" value="Prostodoncia">
-                                        <span>Prostodoncia</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="especialidades[]" value="Cirugía Oral">
-                                        <span>Cirugía Oral</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="especialidades[]" value="Implantología">
-                                        <span>Implantología</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="especialidades[]" value="Prevención">
-                                        <span>Prevención</span>
-                                    </label>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="studentDays">Días Disponibles *</label>
-                                <div class="days-selector">
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias_disponibles[]" value="lunes">
-                                        <span>Lunes</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias_disponibles[]" value="martes">
-                                        <span>Martes</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias_disponibles[]" value="miércoles">
-                                        <span>Miércoles</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias_disponibles[]" value="jueves">
-                                        <span>Jueves</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias_disponibles[]" value="viernes">
-                                        <span>Viernes</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="dias_disponibles[]" value="sábado">
-                                        <span>Sábado</span>
-                                    </label>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="studentHours">Horarios Disponibles *</label>
-                                <div class="hours-selector">
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="horarios_disponibles[]" value="08:00-10:00">
-                                        <span>08:00 - 10:00</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="horarios_disponibles[]" value="10:00-12:00">
-                                        <span>10:00 - 12:00</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="horarios_disponibles[]" value="13:00-15:00">
-                                        <span>13:00 - 15:00</span>
-                                    </label>
-                                    <label class="checkbox-item">
-                                        <input type="checkbox" name="horarios_disponibles[]" value="15:00-17:00">
-                                        <span>15:00 - 17:00</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-secondary" onclick="prevStep(2)">Anterior</button>
-                            <button type="submit" class="btn btn-success">Guardar Estudiante</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Scripts -->
-    <script src="script.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

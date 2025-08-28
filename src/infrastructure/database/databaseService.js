@@ -1,0 +1,520 @@
+/**
+ * DENTAL MATCHING - DATABASE SERVICE
+ * Centralized database operations with optimization and monitoring
+ */
+
+const mysql = require('mysql2/promise');
+const MigrationManager = require('./migrationManager');
+const IndexOptimizer = require('./indexOptimizer');
+const loggerService = require('../logging/logger');
+
+class DatabaseService {
+  constructor() {
+    this.pool = null;
+    this.migrationManager = null;
+    this.indexOptimizer = null;
+    this.healthMetrics = {
+      connections: 0,
+      queries: 0,
+      errors: 0,
+      slowQueries: 0,
+      lastHealthCheck: null
+    };
+  }
+
+  /**
+   * Initialize database connection and services
+   */
+  async initialize() {
+    try {
+      await this.createConnectionPool();
+      await this.setupManagers();
+      await this.runInitialOptimizations();
+      
+      loggerService.info('Database service initialized successfully', {
+        poolSize: this.pool.pool.config.connectionLimit,
+        database: this.pool.pool.config.database
+      });
+
+      // Inicializar adapter legacy para compatibilidad
+      await this.initializeLegacyCompatibility();
+
+      // Start health monitoring
+      this.startHealthMonitoring();
+      
+    } catch (error) {
+      loggerService.error('Database initialization failed', {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // Intentar inicializar con configuración legacy como fallback
+      try {
+        await this.initializeLegacyFallback();
+        loggerService.warn('Using legacy database configuration as fallback');
+      } catch (legacyError) {
+        loggerService.error('Both enterprise and legacy database initialization failed', {
+          enterpriseError: error.message,
+          legacyError: legacyError.message
+        });
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Inicializar compatibilidad con sistema legacy
+   */
+  async initializeLegacyCompatibility() {
+    try {
+      const legacyAdapter = require('./legacyAdapter');
+      await legacyAdapter.initialize();
+      this.legacyAdapter = legacyAdapter;
+      
+      loggerService.info('Legacy database compatibility initialized');
+    } catch (error) {
+      loggerService.warn('Legacy compatibility initialization failed', {
+        error: error.message
+      });
+      // No es crítico, continuar sin compatibilidad legacy
+    }
+  }
+
+  /**
+   * Fallback a configuración legacy
+   */
+  async initializeLegacyFallback() {
+    try {
+      const legacyAdapter = require('./legacyAdapter');
+      await legacyAdapter.initialize();
+      this.legacyAdapter = legacyAdapter;
+      this.isLegacyMode = true;
+      
+      loggerService.info('Database service running in legacy mode');
+    } catch (error) {
+      loggerService.warn('Legacy fallback initialization failed', {
+        error: error.message
+      });
+      // Continue without legacy fallback
+    }
+  }
+
+  /**
+   * Create MySQL connection pool
+   */
+  async createConnectionPool() {
+    const config = {
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 3306,
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'dental_matching',
+      connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 20,
+      charset: 'utf8mb4',
+      timezone: 'Z',
+      ssl: process.env.DB_SSL === 'true' ? {
+        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false'
+      } : false,
+      multipleStatements: false,
+      namedPlaceholders: true
+    };
+
+    this.pool = mysql.createPool(config);
+
+    // Test connection
+    const connection = await this.pool.getConnection();
+    await connection.ping();
+    connection.release();
+
+    loggerService.info('Database connection pool created', {
+      host: config.host,
+      database: config.database,
+      connectionLimit: config.connectionLimit
+    });
+  }
+
+  /**
+   * Setup migration and optimization managers
+   */
+  async setupManagers() {
+    this.migrationManager = new MigrationManager(this.pool);
+    this.indexOptimizer = new IndexOptimizer(this.pool);
+    
+    await this.migrationManager.initialize();
+  }
+
+  /**
+   * Run initial database optimizations
+   */
+  async runInitialOptimizations() {
+    try {
+      // Run pending migrations
+      const migrationResult = await this.migrationManager.migrate();
+      
+      if (migrationResult.executed > 0) {
+        loggerService.info('Database migrations completed', {
+          migrationsExecuted: migrationResult.executed
+        });
+      }
+
+      // Create essential indexes
+      const indexResults = await this.indexOptimizer.createEssentialIndexes();
+      const createdIndexes = indexResults.filter(r => r.status === 'CREATED');
+      
+      if (createdIndexes.length > 0) {
+        loggerService.info('Essential indexes created', {
+          indexesCreated: createdIndexes.length
+        });
+      }
+
+    } catch (error) {
+      loggerService.error('Initial database optimization failed', {
+        error: error.message
+      });
+      // Don't throw - application should still start
+    }
+  }
+
+  /**
+   * Start health monitoring
+   */
+  startHealthMonitoring() {
+    // Health check every 5 minutes
+    setInterval(async () => {
+      await this.performHealthCheck();
+    }, 5 * 60 * 1000);
+
+    // Performance analysis every hour
+    setInterval(async () => {
+      await this.performPerformanceAnalysis();
+    }, 60 * 60 * 1000);
+  }
+
+  /**
+   * Execute query with monitoring
+   */
+  async execute(query, params = []) {
+    const startTime = Date.now();
+    const queryId = require('crypto').randomUUID().substring(0, 8);
+    
+    try {
+      this.healthMetrics.queries++;
+      
+      loggerService.debug('Executing database query', {
+        queryId,
+        query: query.substring(0, 200),
+        paramCount: params.length
+      });
+
+      const [results] = await this.pool.execute(query, params);
+      const duration = Date.now() - startTime;
+
+      // Log slow queries
+      if (duration > 1000) {
+        this.healthMetrics.slowQueries++;
+        loggerService.warn('Slow database query detected', {
+          queryId,
+          duration,
+          query: query.substring(0, 500)
+        });
+      }
+
+      loggerService.debug('Database query completed', {
+        queryId,
+        duration,
+        rowsAffected: results.affectedRows || results.length || 0
+      });
+
+      return results;
+    } catch (error) {
+      this.healthMetrics.errors++;
+      const duration = Date.now() - startTime;
+      
+      loggerService.error('Database query failed', {
+        queryId,
+        duration,
+        error: error.message,
+        query: query.substring(0, 500),
+        sqlState: error.sqlState,
+        errno: error.errno
+      });
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Execute query with automatic retry
+   */
+  async executeWithRetry(query, params = [], maxRetries = 3) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await this.execute(query, params);
+      } catch (error) {
+        lastError = error;
+        
+        // Don't retry certain errors
+        if (error.errno === 1062 || // Duplicate entry
+            error.errno === 1452 || // Foreign key constraint
+            error.errno === 1054) { // Unknown column
+          throw error;
+        }
+        
+        if (attempt === maxRetries) {
+          loggerService.error('Query failed after all retry attempts', {
+            attempts: maxRetries,
+            finalError: error.message
+          });
+          break;
+        }
+        
+        // Exponential backoff
+        const delay = Math.pow(2, attempt) * 100;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        loggerService.warn('Retrying database query', {
+          attempt,
+          maxRetries,
+          error: error.message,
+          nextRetryIn: delay * 2
+        });
+      }
+    }
+    
+    throw lastError;
+  }
+
+  /**
+   * Execute transaction
+   */
+  async executeTransaction(operations) {
+    const connection = await this.pool.getConnection();
+    const transactionId = require('crypto').randomUUID().substring(0, 8);
+    
+    try {
+      await connection.beginTransaction();
+      
+      loggerService.debug('Transaction started', {
+        transactionId,
+        operationCount: operations.length
+      });
+
+      const results = [];
+      for (const operation of operations) {
+        const [result] = await connection.execute(operation.query, operation.params || []);
+        results.push(result);
+      }
+
+      await connection.commit();
+      
+      loggerService.debug('Transaction committed', {
+        transactionId,
+        operationCount: operations.length
+      });
+
+      return results;
+    } catch (error) {
+      await connection.rollback();
+      
+      loggerService.error('Transaction rolled back', {
+        transactionId,
+        error: error.message
+      });
+      
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * Get connection pool statistics
+   */
+  getPoolStats() {
+    if (!this.pool) return null;
+
+    return {
+      totalConnections: this.pool.pool.totalConnections,
+      activeConnections: this.pool.pool.activeConnections,
+      idleConnections: this.pool.pool.idleConnections,
+      waitingClients: this.pool.pool.waitingClients,
+      connectionLimit: this.pool.pool.config.connectionLimit
+    };
+  }
+
+  /**
+   * Perform health check
+   */
+  async performHealthCheck() {
+    try {
+      const startTime = Date.now();
+      
+      // Test basic connectivity
+      await this.execute('SELECT 1 as health_check');
+      
+      // Get pool statistics
+      const poolStats = this.getPoolStats();
+      
+      // Get database size
+      const [sizeResult] = await this.execute(`
+        SELECT 
+          ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS size_mb,
+          COUNT(*) AS table_count
+        FROM information_schema.tables 
+        WHERE table_schema = DATABASE()
+      `);
+
+      const duration = Date.now() - startTime;
+      this.healthMetrics.lastHealthCheck = new Date();
+
+      const healthData = {
+        status: 'healthy',
+        responseTime: duration,
+        connections: poolStats,
+        database: {
+          sizeMB: sizeResult[0]?.size_mb || 0,
+          tableCount: sizeResult[0]?.table_count || 0
+        },
+        metrics: { ...this.healthMetrics }
+      };
+
+      loggerService.logHealthCheck('database', healthData);
+      return healthData;
+      
+    } catch (error) {
+      const healthData = {
+        status: 'unhealthy',
+        error: error.message,
+        metrics: { ...this.healthMetrics }
+      };
+      
+      loggerService.logHealthCheck('database', healthData);
+      return healthData;
+    }
+  }
+
+  /**
+   * Perform performance analysis
+   */
+  async performPerformanceAnalysis() {
+    try {
+      loggerService.info('Starting database performance analysis');
+      
+      const analysis = await this.indexOptimizer.analyzePerformance();
+      const recommendations = this.indexOptimizer.generateRecommendations(analysis);
+      
+      // Log high-priority issues
+      const highPriority = recommendations.filter(r => r.priority === 'HIGH');
+      if (highPriority.length > 0) {
+        loggerService.warn('High-priority database performance issues detected', {
+          issueCount: highPriority.length,
+          issues: highPriority.map(r => ({
+            type: r.type,
+            description: r.description
+          }))
+        });
+      }
+
+      // Store performance metrics
+      await this.storePerformanceMetrics(analysis);
+      
+      loggerService.info('Database performance analysis completed', {
+        slowQueries: analysis.slowQueries.length,
+        missingIndexes: analysis.missingIndexes.length,
+        unusedIndexes: analysis.unusedIndexes.length,
+        recommendationsCount: recommendations.length
+      });
+
+      return { analysis, recommendations };
+      
+    } catch (error) {
+      loggerService.error('Database performance analysis failed', {
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Store performance metrics
+   */
+  async storePerformanceMetrics(analysis) {
+    try {
+      const metrics = [
+        {
+          name: 'slow_queries_count',
+          value: analysis.slowQueries.length,
+          unit: 'count'
+        },
+        {
+          name: 'missing_indexes_count', 
+          value: analysis.missingIndexes.length,
+          unit: 'count'
+        },
+        {
+          name: 'unused_indexes_count',
+          value: analysis.unusedIndexes.length,
+          unit: 'count'
+        },
+        {
+          name: 'average_query_time',
+          value: analysis.slowQueries.length > 0 
+            ? analysis.slowQueries.reduce((sum, q) => sum + q.avgTime, 0) / analysis.slowQueries.length 
+            : 0,
+          unit: 'seconds'
+        }
+      ];
+
+      for (const metric of metrics) {
+        await this.execute(
+          'INSERT INTO performance_metrics (metric_name, metric_value, metric_unit, tags) VALUES (?, ?, ?, ?)',
+          [metric.name, metric.value, metric.unit, JSON.stringify({ source: 'database_analysis' })]
+        );
+      }
+    } catch (error) {
+      loggerService.error('Failed to store performance metrics', {
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Get migration manager
+   */
+  getMigrationManager() {
+    return this.migrationManager;
+  }
+
+  /**
+   * Get index optimizer
+   */
+  getIndexOptimizer() {
+    return this.indexOptimizer;
+  }
+
+  /**
+   * Close database connections
+   */
+  async close() {
+    if (this.pool) {
+      await this.pool.end();
+      loggerService.info('Database connections closed');
+    }
+  }
+
+  /**
+   * Create database middleware for Express
+   */
+  middleware() {
+    return (req, res, next) => {
+      req.db = this;
+      next();
+    };
+  }
+}
+
+// Create singleton instance
+const databaseService = new DatabaseService();
+
+module.exports = databaseService;
