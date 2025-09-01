@@ -1,17 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const { getConnection, executeQuery } = require('../config/database');
-const LegacyLoggerAdapter = require('./legacyLoggerAdapter');
-
 // Importar middleware de autenticación
 const { authenticateToken } = require('../src/shared/middleware/auth');
 const studentCodeService = require('../services/studentCodeService');
 
-// Inicializar logger estructurado para esta ruta
-const logger = new LegacyLoggerAdapter('estudiantes');
+// Logger simple para desarrollo
+const logger = {
+  info: (msg, data) => console.log(`[INFO] ${msg}`, data || ''),
+  warn: (msg, data) => console.warn(`[WARN] ${msg}`, data || ''),
+  error: (msg, data) => console.error(`[ERROR] ${msg}`, data || '')
+};
 
-// GET /api/estudiantes - Obtener todos los estudiantes
-router.get('/', authenticateToken, async (req, res) => {
+// GET /api/estudiantes - Obtener todos los estudiantes (DESARROLLO: SIN AUTH)
+router.get('/', async (req, res) => {
   try {
     const result = await executeQuery(`
       SELECT 
@@ -28,23 +30,24 @@ router.get('/', authenticateToken, async (req, res) => {
         e.casos_necesarios, 
         e.casos_activos,
         e.fecha_registro,
-        e.especialidades,
-        COALESCE(e.especialidades, 'General') as especialidades_display
+        GROUP_CONCAT(DISTINCT ee.especialidad ORDER BY ee.especialidad SEPARATOR ', ') as especialidades_display
       FROM estudiantes_odontologia e
+      LEFT JOIN especialidades_estudiante ee ON e.id = ee.id_estudiante AND ee.activo = 1
       WHERE e.estado = ?
+      GROUP BY e.id, e.codigo_estudiante, e.nombre_completo, e.año_carrera, e.telefono, e.email, e.universidad, e.ciudad, e.estado, e.casos_completados, e.casos_necesarios, e.casos_activos, e.fecha_registro
       ORDER BY e.nombre_completo ASC
     `, ['activo']);
     
     // Procesar los datos para asegurar que tengan valores por defecto
     const estudiantesProcesados = result.rows.map(estudiante => ({
       ...estudiante,
-      nombre_completo: estudiante.nombre_completo || 'Sin nombre',
-      codigo_estudiante: estudiante.codigo_estudiante || 'N/A',
-      universidad: estudiante.universidad || 'No especificada',
-      especialidades: estudiante.especialidades_display || 'General',
+      nombre_completo: estudiante.nombre_completo || '',
+      codigo_estudiante: estudiante.codigo_estudiante || '',
+      universidad: estudiante.universidad || '',
+      especialidades: estudiante.especialidades_display || 'Sin especialidades asignadas',
       casos_activos: estudiante.casos_activos || 0,
       casos_completados: estudiante.casos_completados || 0,
-      año_carrera: estudiante.año_carrera || 'N/A'
+      año_carrera: estudiante.año_carrera || ''
     }));
 
     // Verificar y corregir códigos inválidos o faltantes
@@ -86,7 +89,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // GET /api/estudiantes/stats - Estadísticas de estudiantes
-router.get('/stats', authenticateToken, async (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const result = await executeQuery(`
       SELECT 

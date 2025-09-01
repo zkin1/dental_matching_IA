@@ -7,3 +7,22 @@ node_modules/
 public/dist/
 dist/
 .cache/
+
+# IDE specific files
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*.backup
+*.bak
+*.old
+*~
+
+# Log directories
+logs/
+
+# Development files
+dev-*.js

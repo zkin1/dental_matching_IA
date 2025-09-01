@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { UnauthorizedError, ForbiddenError } = require('../errors/AppError');
+const { AuthenticationError, AuthorizationError } = require('../errors/AppError');
 const logger = require('../utils/logger');
 
 /**
@@ -12,7 +12,7 @@ const authenticateToken = (req, res, next) => {
         const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
         
         if (!token) {
-            throw new UnauthorizedError('Token de acceso requerido');
+            throw new AuthenticationError('Token de acceso requerido');
         }
         
         // SEGURIDAD CRÍTICA: Nunca usar secret hardcodeado
@@ -26,11 +26,11 @@ const authenticateToken = (req, res, next) => {
         jwt.verify(token, secretKey, (err, user) => {
             if (err) {
                 if (err.name === 'TokenExpiredError') {
-                    throw new UnauthorizedError('Token expirado');
+                    throw new AuthenticationError('Token expirado');
                 } else if (err.name === 'JsonWebTokenError') {
-                    throw new UnauthorizedError('Token inválido');
+                    throw new AuthenticationError('Token inválido');
                 } else {
-                    throw new UnauthorizedError('Error de verificación del token');
+                    throw new AuthenticationError('Error de verificación del token');
                 }
             }
             
@@ -52,7 +52,7 @@ const requireRole = (allowedRoles) => {
     return (req, res, next) => {
         try {
             if (!req.user) {
-                throw new UnauthorizedError('Usuario no autenticado');
+                throw new AuthenticationError('Usuario no autenticado');
             }
             
             const userRole = req.user.role;
@@ -60,7 +60,7 @@ const requireRole = (allowedRoles) => {
             
             if (!rolesArray.includes(userRole)) {
                 logger.warn(`Acceso denegado para usuario ${req.user.id} con rol ${userRole}. Roles permitidos: ${rolesArray.join(', ')}`);
-                throw new ForbiddenError(`Acceso denegado. Roles permitidos: ${rolesArray.join(', ')}`);
+                throw new AuthorizationError(`Acceso denegado. Roles permitidos: ${rolesArray.join(', ')}`);
             }
             
             logger.debug(`Acceso autorizado para usuario ${req.user.id} con rol ${userRole}`);
@@ -80,14 +80,14 @@ const requirePermission = (permission) => {
     return (req, res, next) => {
         try {
             if (!req.user) {
-                throw new UnauthorizedError('Usuario no autenticado');
+                throw new AuthenticationError('Usuario no autenticado');
             }
             
             const userPermissions = req.user.permissions || [];
             
             if (!userPermissions.includes(permission)) {
                 logger.warn(`Permiso denegado para usuario ${req.user.id}. Permiso requerido: ${permission}`);
-                throw new ForbiddenError(`Permiso requerido: ${permission}`);
+                throw new AuthorizationError(`Permiso requerido: ${permission}`);
             }
             
             logger.debug(`Permiso autorizado para usuario ${req.user.id}: ${permission}`);
@@ -107,7 +107,7 @@ const requireOwnership = (resourceIdParam = 'id') => {
     return (req, res, next) => {
         try {
             if (!req.user) {
-                throw new UnauthorizedError('Usuario no autenticado');
+                throw new AuthenticationError('Usuario no autenticado');
             }
             
             const resourceId = parseInt(req.params[resourceIdParam]);
@@ -122,7 +122,7 @@ const requireOwnership = (resourceIdParam = 'id') => {
             // Verificar propiedad del recurso
             if (userId !== resourceId) {
                 logger.warn(`Acceso denegado para usuario ${userId} intentando acceder al recurso ${resourceId}`);
-                throw new ForbiddenError('Solo puedes acceder a tus propios recursos');
+                throw new AuthorizationError('Solo puedes acceder a tus propios recursos');
             }
             
             next();

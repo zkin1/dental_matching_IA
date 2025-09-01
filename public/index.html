@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="dashboard-enhanced.css">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMyNTYzZWIiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0ibTEyIDIgNC45IDcuNEwyNCA4bC03IDFMMTkuMSAyMiAxMiAxNS40IDQuOSAyMiA3IDlsLTctMSA3LjEtNC42eiIvPjwvc3ZnPg==">
 </head>
 <body>
@@ -111,88 +112,215 @@
                             <button class="btn-text" onclick="checkHealth()">
                                 <i class="fas fa-sync-alt"></i> Verificar
                             </button>
+                            <button class="btn-text" onclick="refreshAIMetrics()">
+                                <i class="fas fa-refresh"></i> Actualizar
+                            </button>
+                        </div>
+                        <div class="alert-footer">
+                            <div class="alert-timestamp" id="lastUpdate">
+                                Última actualización: <span id="lastUpdateTime">--:--</span>
+                            </div>
+                            <div class="data-source-indicator" id="dataSource">
+                                <i class="fas fa-database"></i>
+                                <span id="dataSourceText">Datos reales</span>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Enhanced Statistics Grid -->
-                    <div class="metrics-grid" id="statsContainer" aria-label="Métricas del sistema">
-                        <div class="metric-card primary">
+                    <div class="metrics-grid-enhanced" id="statsContainer" aria-label="Métricas del sistema">
+                        <!-- Patients Metric -->
+                        <div class="metric-card-enhanced primary" data-metric="patients">
+                            <div class="metric-background">
+                                <i class="fas fa-users"></i>
+                            </div>
                             <div class="metric-header">
                                 <div class="metric-icon">
                                     <i class="fas fa-users"></i>
                                 </div>
-                                <div class="metric-trend positive">
-                                    <i class="fas fa-arrow-up"></i>
-                                    <span>+12%</span>
+                                <div class="metric-actions">
+                                    <button class="metric-btn" onclick="navigateToPatients()">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="metric-content">
-                                <div class="metric-number" id="totalPatients">-</div>
-                                <div class="metric-label">Total Pacientes</div>
-                                <div class="metric-subtitle">Activos en sistema</div>
+                                <div class="metric-number" id="totalPatients">
+                                    <span class="number">-</span>
+                                    <div class="loading-spinner"></div>
+                                </div>
+                                <div class="metric-label">Pacientes</div>
+                                <div class="metric-details">
+                                    <span class="detail-item" id="patientsToday">0 hoy</span>
+                                    <span class="detail-separator">•</span>
+                                    <span class="detail-item" id="patientsPending">0 pendientes</span>
+                                </div>
                             </div>
-                            <div class="metric-progress">
-                                <div class="progress-bar" style="width: 75%"></div>
+                            <div class="metric-trend" id="patientsTrend">
+                                <div class="trend-indicator positive">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span>+0%</span>
+                                </div>
+                            </div>
+                            <div class="metric-footer">
+                                <div class="progress-container">
+                                    <div class="progress-bar" style="width: 0%" id="patientsProgress"></div>
+                                </div>
+                                <small class="progress-label">Capacidad del sistema</small>
                             </div>
                         </div>
                         
-                        <div class="metric-card success">
+                        <!-- Students Metric -->
+                        <div class="metric-card-enhanced success" data-metric="students">
+                            <div class="metric-background">
+                                <i class="fas fa-user-graduate"></i>
+                            </div>
                             <div class="metric-header">
                                 <div class="metric-icon">
                                     <i class="fas fa-user-graduate"></i>
                                 </div>
-                                <div class="metric-trend positive">
-                                    <i class="fas fa-arrow-up"></i>
-                                    <span>+5%</span>
+                                <div class="metric-actions">
+                                    <button class="metric-btn" onclick="navigateToStudents()">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="metric-content">
-                                <div class="metric-number" id="totalStudents">-</div>
+                                <div class="metric-number" id="totalStudents">
+                                    <span class="number">-</span>
+                                    <div class="loading-spinner"></div>
+                                </div>
                                 <div class="metric-label">Estudiantes</div>
-                                <div class="metric-subtitle">Disponibles</div>
+                                <div class="metric-details">
+                                    <span class="detail-item" id="studentsActive">0 activos</span>
+                                    <span class="detail-separator">•</span>
+                                    <span class="detail-item" id="studentsAvailable">0 disponibles</span>
+                                </div>
                             </div>
-                            <div class="metric-progress">
-                                <div class="progress-bar" style="width: 60%"></div>
+                            <div class="metric-trend" id="studentsTrend">
+                                <div class="trend-indicator positive">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span>+0%</span>
+                                </div>
+                            </div>
+                            <div class="metric-footer">
+                                <div class="progress-container">
+                                    <div class="progress-bar" style="width: 0%" id="studentsProgress"></div>
+                                </div>
+                                <small class="progress-label">Disponibilidad promedio</small>
                             </div>
                         </div>
                         
-                        <div class="metric-card info">
+                        <!-- Assignments Metric -->
+                        <div class="metric-card-enhanced info" data-metric="assignments">
+                            <div class="metric-background">
+                                <i class="fas fa-link"></i>
+                            </div>
                             <div class="metric-header">
                                 <div class="metric-icon">
                                     <i class="fas fa-link"></i>
                                 </div>
-                                <div class="metric-trend neutral">
+                                <div class="metric-actions">
+                                    <button class="metric-btn" onclick="navigateToAssignments()">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="metric-content">
+                                <div class="metric-number" id="totalAssignments">
+                                    <span class="number">-</span>
+                                    <div class="loading-spinner"></div>
+                                </div>
+                                <div class="metric-label">Asignaciones</div>
+                                <div class="metric-details">
+                                    <span class="detail-item" id="assignmentsToday">0 hoy</span>
+                                    <span class="detail-separator">•</span>
+                                    <span class="detail-item" id="assignmentsCompleted">0 completadas</span>
+                                </div>
+                            </div>
+                            <div class="metric-trend" id="assignmentsTrend">
+                                <div class="trend-indicator neutral">
                                     <i class="fas fa-minus"></i>
                                     <span>0%</span>
                                 </div>
                             </div>
-                            <div class="metric-content">
-                                <div class="metric-number" id="totalAssignments">-</div>
-                                <div class="metric-label">Asignaciones</div>
-                                <div class="metric-subtitle">Este mes</div>
-                            </div>
-                            <div class="metric-progress">
-                                <div class="progress-bar" style="width: 85%"></div>
+                            <div class="metric-footer">
+                                <div class="progress-container">
+                                    <div class="progress-bar" style="width: 0%" id="assignmentsProgress"></div>
+                                </div>
+                                <small class="progress-label">Eficiencia de asignación</small>
                             </div>
                         </div>
                         
-                        <div class="metric-card warning">
+                        <!-- AI Performance Metric -->
+                        <div class="metric-card-enhanced ai-metric" data-metric="ai">
+                            <div class="metric-background">
+                                <i class="fas fa-brain"></i>
+                            </div>
                             <div class="metric-header">
                                 <div class="metric-icon">
-                                    <i class="fas fa-robot"></i>
+                                    <i class="fas fa-brain"></i>
                                 </div>
-                                <div class="metric-trend positive">
-                                    <i class="fas fa-arrow-up"></i>
-                                    <span>+8%</span>
+                                <div class="metric-actions">
+                                    <button class="metric-btn" onclick="refreshAIMetrics()" title="Actualizar métricas IA">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
                                 </div>
                             </div>
                             <div class="metric-content">
-                                <div class="metric-number" id="successRate">-%</div>
+                                <div class="metric-number" id="aiAccuracy">
+                                    <span class="number" id="successRate">-</span>
+                                    <span class="unit">%</span>
+                                    <div class="loading-spinner"></div>
+                                </div>
                                 <div class="metric-label">Precisión IA</div>
-                                <div class="metric-subtitle">Algoritmo v3.0</div>
+                                <div class="metric-details">
+                                    <span class="detail-item" id="aiResponseTime">0.0s resp.</span>
+                                    <span class="detail-separator">•</span>
+                                    <span class="detail-item" id="aiAnalysisToday">0 análisis</span>
+                                </div>
                             </div>
-                            <div class="metric-progress">
-                                <div class="progress-bar" style="width: 92%"></div>
+                            <div class="metric-trend" id="aiTrend">
+                                <div class="trend-indicator positive">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span>Optimizado</span>
+                                </div>
+                            </div>
+                            <div class="metric-footer">
+                                <div class="ai-status-indicators">
+                                    <div class="status-indicator">
+                                        <div class="status-dot active" id="aiEngineStatus"></div>
+                                        <span>Motor IA</span>
+                                    </div>
+                                    <div class="status-indicator">
+                                        <div class="status-dot active" id="aiModelStatus"></div>
+                                        <span>Modelo v3.0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Real-time Activity Feed -->
+                    <div class="activity-section">
+                        <div class="activity-header">
+                            <h3>
+                                <i class="fas fa-pulse"></i>
+                                Actividad Reciente
+                            </h3>
+                            <div class="activity-controls">
+                                <button class="btn-small" onclick="refreshActivity()">
+                                    <i class="fas fa-refresh"></i>
+                                </button>
+                                <button class="btn-small" onclick="toggleActivityStream()">
+                                    <i class="fas fa-pause" id="activityToggle"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="activity-feed" id="activityFeed">
+                            <div class="activity-loading">
+                                <div class="pulse-loader"></div>
+                                <p>Cargando actividad reciente...</p>
                             </div>
                         </div>
                     </div>

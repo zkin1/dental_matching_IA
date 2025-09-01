@@ -233,8 +233,13 @@ class IntelligentMatchingService {
                 codigo_acceso: codigoAcceso,
                 fecha_asignacion: new Date(),
                 score_compatibilidad: 0.76,
-                algoritmo_version: 'v3.0',
-                estado: 'asignado'
+                algoritmo_version: 'v3.1',
+                estado: 'asignado',
+                especialidad_asignada: especialidad.especialidad,
+                dia_semana_asignado: especialidad.dia_semana,
+                hora_inicio_asignada: especialidad.hora_inicio,
+                hora_fin_asignada: especialidad.hora_fin,
+                observaciones_sistema: `Matching inteligente v3.1 - ${especialidad.especialidad} en ${especialidad.clinica} - ${especialidad.dia_semana} ${especialidad.hora_inicio}-${especialidad.hora_fin}`
             };
             
             const assignmentId = await this.assignmentRepository.create(assignmentData);

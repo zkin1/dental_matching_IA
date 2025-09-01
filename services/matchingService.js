@@ -1113,8 +1113,14 @@ class AdvancedMatchingService {
                 codigo_acceso,
                 fecha_asignacion,
                 estado,
-                algoritmo_version
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                algoritmo_version,
+                especialidad_asignada,
+                dia_semana_asignado,
+                hora_inicio_asignada,
+                hora_fin_asignada,
+                score_compatibilidad,
+                observaciones_sistema
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const [codigo] = await this.connection.execute(
@@ -1130,7 +1136,13 @@ class AdvancedMatchingService {
             codigoAcceso,
             new Date(),
             'asignado',
-            '2.0'
+            '2.1',
+            matchingResult.especialidad,
+            matchingResult.dia_semana,
+            matchingResult.hora_inicio,
+            matchingResult.hora_fin,
+            matchingResult.score,
+            `Matching automático IA v2.1 - Tratamiento: ${matchingResult.tratamiento} - Compatibilidad horarios: ${matchingResult.compatibilidadHorarios.scoreCompatibilidad.toFixed(2)}`
         ]);
     }
     

@@ -21,23 +21,19 @@ class SecurityConfig {
     
     return {
       origin: (origin, callback) => {
+        // DESARROLLO: Permitir todos los orígenes para testing
+        if (this.isDevelopment) {
+          return callback(null, true);
+        }
+
         // SEGURIDAD: Requests sin origin solo se permiten desde herramientas de desarrollo específicas
         if (!origin) {
-          // En desarrollo, permitir solo si viene con user-agent de herramientas conocidas
-          if (this.isDevelopment) {
-            return callback(null, true);
-          }
           // En producción, rechazar requests sin origin para prevenir CSRF
           return callback(new Error('Origin header required'));
         }
 
         // Check if origin is in allowed list
         if (allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        }
-
-        // Allow localhost in development ONLY
-        if (this.isDevelopment && this.isLocalhost(origin)) {
           return callback(null, true);
         }
 

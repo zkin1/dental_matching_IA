@@ -2,13 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { getConnection } = require('../config/database');
 const autoNotificationService = require('../services/autoNotificationService');
-const LegacyLoggerAdapter = require('./legacyLoggerAdapter');
 
 // Importar middleware de autenticación
 const { authenticateToken } = require('../src/shared/middleware/auth');
 
-// Inicializar logger estructurado para esta ruta
-const logger = new LegacyLoggerAdapter('asignaciones');
+// Logger simple para desarrollo
+const logger = {
+  info: (msg, data) => console.log(`[INFO] ${msg}`, data || ''),
+  warn: (msg, data) => console.warn(`[WARN] ${msg}`, data || ''),
+  error: (msg, data) => console.error(`[ERROR] ${msg}`, data || '')
+};
 
 // GET /api/asignaciones - Obtener todas las asignaciones (PROTEGIDO)
 router.get('/', async (req, res) => {
@@ -82,6 +85,10 @@ router.get('/', async (req, res) => {
               a.id_estudiante,
               a.codigo_acceso,
               a.algoritmo_version,
+              a.especialidad_asignada,
+              a.dia_semana_asignado,
+              a.hora_inicio_asignada,
+              a.hora_fin_asignada,
               a.fecha_primer_contacto,
               a.fecha_inicio_tratamiento,
               a.fecha_finalizacion,
@@ -97,10 +104,12 @@ router.get('/', async (req, res) => {
               COALESCE(e.nombre_completo, 'Estudiante no encontrado') as estudiante_nombre,
               COALESCE(e.codigo_estudiante, 'N/A') as codigo_estudiante,
               COALESCE(e.año_carrera, 'N/A') as año_carrera,
-              COALESCE(e.especialidades, 'General') as especialidades
+              GROUP_CONCAT(DISTINCT ee.especialidad ORDER BY ee.especialidad SEPARATOR ', ') as especialidades
             FROM asignaciones a
             LEFT JOIN pacientes p ON a.id_paciente = p.id
             LEFT JOIN estudiantes_odontologia e ON a.id_estudiante = e.id
+            LEFT JOIN especialidades_estudiante ee ON e.id = ee.id_estudiante AND ee.activo = 1
+            GROUP BY a.id, a.estado, a.fecha_asignacion, a.score_compatibilidad, a.observaciones_sistema, a.observaciones_estudiante, a.id_paciente, a.id_estudiante, a.codigo_acceso, a.algoritmo_version, a.especialidad_asignada, a.dia_semana_asignado, a.hora_inicio_asignada, a.hora_fin_asignada, a.fecha_primer_contacto, a.fecha_inicio_tratamiento, a.fecha_finalizacion, a.motivo_cancelacion, a.notificado_por_email, a.fecha_notificacion, a.recordatorios_enviados, p.nombre_completo, p.telefono, p.tipo_tratamiento_inferido, p.nivel_dolor, p.prioridad, e.nombre_completo, e.codigo_estudiante, e.año_carrera
             ORDER BY a.fecha_asignacion DESC
             LIMIT 100
           `);
@@ -193,6 +202,15 @@ router.get('/', async (req, res) => {
       tipo_asignacion: asignacion.tipo_asignacion || 'automática',
       id_paciente: asignacion.id_paciente || null,
       id_estudiante: asignacion.id_estudiante || null,
+      // Campos de horario nuevos
+      especialidad_asignada: asignacion.especialidad_asignada || 'No asignada',
+      dia_semana_asignado: asignacion.dia_semana_asignado || 'No asignado',
+      hora_inicio_asignada: asignacion.hora_inicio_asignada || 'No asignada',
+      hora_fin_asignada: asignacion.hora_fin_asignada || 'No asignada',
+      horario_completo: asignacion.dia_semana_asignado && asignacion.hora_inicio_asignada && asignacion.hora_fin_asignada 
+        ? `${asignacion.dia_semana_asignado} ${asignacion.hora_inicio_asignada}-${asignacion.hora_fin_asignada}` 
+        : 'Horario no asignado',
+      // Campos existentes
       paciente_nombre: asignacion.paciente_nombre || 'Paciente no encontrado',
       paciente_telefono: asignacion.paciente_telefono || 'N/A',
       tipo_tratamiento_inferido: asignacion.tipo_tratamiento_inferido || 'No especificado',
@@ -201,7 +219,7 @@ router.get('/', async (req, res) => {
       estudiante_nombre: asignacion.estudiante_nombre || 'Estudiante no encontrado',
       codigo_estudiante: asignacion.codigo_estudiante || 'N/A',
       año_carrera: asignacion.año_carrera || 'N/A',
-      especialidades: asignacion.especialidades || 'General'
+      especialidades: asignacion.especialidades || 'Sin especialidades asignadas'
     }));
     
     res.json({
