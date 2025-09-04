@@ -115,7 +115,7 @@ class RateLimiterService {
   standardLimiter() {
     return rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // limit each IP to 100 requests per windowMs
+      max: process.env.NODE_ENV === 'development' ? 10000 : 100, // 10000 en dev, 100 en prod
       message: {
         error: 'Too many requests',
         message: 'Rate limit exceeded. Please try again later.',

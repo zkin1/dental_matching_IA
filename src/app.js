@@ -231,13 +231,13 @@ app.use('/api', apiRoutes);
  */
 if (process.env.NODE_ENV === 'development') {
     try {
-        const devPacientesRoutes = require('../routes/dev-pacientes');
-        const devEstudiantesRoutes = require('../routes/dev-estudiantes'); 
-        const devAsignacionesRoutes = require('../routes/dev-asignaciones');
+        const pacientesRoutes = require('../routes/pacientes');
+        const estudiantesRoutes = require('../routes/estudiantes'); 
+        const asignacionesRoutes = require('../routes/asignaciones');
         
-        app.use('/api/pacientes', devPacientesRoutes);
-        app.use('/api/estudiantes', devEstudiantesRoutes);
-        app.use('/api/asignaciones', devAsignacionesRoutes);
+        app.use('/api/pacientes', pacientesRoutes);
+        app.use('/api/estudiantes', estudiantesRoutes);
+        app.use('/api/asignaciones', asignacionesRoutes);
         
         loggerService.info('Development routes mounted successfully', {
             routes: ['/api/pacientes', '/api/estudiantes', '/api/asignaciones']

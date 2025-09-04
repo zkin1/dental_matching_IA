@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 const { getConnection } = require('../config/database');
-const studentCodeService = require('./studentCodeService');
+const EmailTemplateService = require('./emailTemplateService');
 
 class AutoNotificationService {
     constructor() {
@@ -37,6 +37,9 @@ class AutoNotificationService {
         this.logs = [];
         this.maxRetries = parseInt(process.env.NOTIFICATION_RETRY_ATTEMPTS) || 3;
         this.retryDelay = parseInt(process.env.NOTIFICATION_RETRY_DELAY_MS) || 5000;
+        
+        // Inicializar el servicio de templates profesionales
+        this.emailTemplateService = new EmailTemplateService();
     }
 
     /**
@@ -110,8 +113,8 @@ class AutoNotificationService {
             return {
                 success: true,
                 message: 'Notificaciones enviadas correctamente',
-                paciente: paciente.nombre || paciente.nombre_completo,
-                estudiante: estudiante.nombre || estudiante.nombre_completo
+                paciente: paciente.nombre_completo,
+                estudiante: estudiante.nombre_completo
             };
 
         } catch (error) {
@@ -125,30 +128,58 @@ class AutoNotificationService {
     }
 
     /**
-     * Envía correo al estudiante
+     * Envía correo al estudiante con templates profesionales mejorados
      */
     async sendStudentNotification(paciente, estudiante, fechaAsignacion) {
+        // Crear objeto de detalles de matching para el template
+        const matchingDetails = {
+            fecha_asignacion: fechaAsignacion,
+            dia_semana: this.getDayName(new Date(fechaAsignacion)),
+            hora_inicio: '08:00', // Default, puede ser mejorado con datos reales
+            hora_fin: '13:00',
+            clinica: paciente.edad < 18 ? 'Clínica para el Niño y Adolescente' : 'Clínica Integral Adulto y Gerontología',
+            especialidad: 'Odontología General', // Default
+            tratamiento: paciente.tipo_tratamiento_inferido || paciente.tratamiento || 'Consulta General',
+            score: 0.85 // Default score
+        };
+
         const mailOptions = {
-            from: process.env.EMAIL_USER,
+            from: {
+                name: 'Clínica Dental Universitaria',
+                address: process.env.EMAIL_USER
+            },
             to: estudiante.email,
-            subject: `Nueva Asignación de Paciente - ${paciente.nombre}`,
-            html: this.createStudentEmailContent(paciente, estudiante, fechaAsignacion),
-            text: this.createStudentPlainTextContent(paciente, estudiante, fechaAsignacion)
+            subject: `🦷 Nueva Asignación de Paciente - ${paciente.nombre_completo || paciente.nombre}`,
+            html: this.emailTemplateService.getStudentNotificationTemplate(estudiante, paciente, matchingDetails)
         };
 
         return await this.sendEmailWithRetry(mailOptions, 'estudiante');
     }
 
     /**
-     * Envía correo al paciente
+     * Envía correo al paciente con templates profesionales mejorados
      */
     async sendPatientNotification(paciente, estudiante, fechaAsignacion) {
+        // Crear objeto de detalles de matching para el template
+        const matchingDetails = {
+            fecha_asignacion: fechaAsignacion,
+            dia_semana: this.getDayName(new Date(fechaAsignacion)),
+            hora_inicio: '08:00', // Default, puede ser mejorado con datos reales
+            hora_fin: '13:00',
+            clinica: paciente.edad < 18 ? 'Clínica para el Niño y Adolescente' : 'Clínica Integral Adulto y Gerontología',
+            especialidad: 'Odontología General', // Default
+            tratamiento: paciente.tipo_tratamiento_inferido || paciente.tratamiento || 'Consulta General',
+            score: 0.85 // Default score
+        };
+
         const mailOptions = {
-            from: process.env.EMAIL_USER,
+            from: {
+                name: 'Clínica Dental Universitaria',
+                address: process.env.EMAIL_USER
+            },
             to: paciente.email,
-            subject: 'Su Caso Ha Sido Asignado a un Estudiante',
-            html: this.createPatientEmailContent(paciente, estudiante, fechaAsignacion),
-            text: this.createPatientPlainTextContent(paciente, estudiante, fechaAsignacion)
+            subject: '✅ Su Caso Ha Sido Asignado - Clínica Dental Universitaria',
+            html: this.emailTemplateService.getPatientNotificationTemplate(paciente, estudiante, matchingDetails)
         };
 
         return await this.sendEmailWithRetry(mailOptions, 'paciente');
@@ -395,7 +426,7 @@ Fecha de Asignación: ${fechaFormateada}
         const pool = await getConnection();
         try {
             const [rows] = await pool.execute(
-                'SELECT id, nombre_completo as nombre, edad, prioridad, estado, email FROM pacientes WHERE id = ?',
+                'SELECT id, nombre_completo, edad, prioridad, estado, email, tipo_tratamiento_inferido FROM pacientes WHERE id = ?',
                 [pacienteId]
             );
             return rows[0];
@@ -412,7 +443,7 @@ Fecha de Asignación: ${fechaFormateada}
         const pool = await getConnection();
         try {
             const [rows] = await pool.execute(
-                'SELECT id, nombre_completo as nombre, email, codigo_estudiante, especialidades FROM estudiantes_odontologia WHERE id = ?',
+                'SELECT id, nombre_completo, email, codigo_estudiante, especialidades FROM estudiantes_odontologia WHERE id = ?',
                 [estudianteId]
             );
             return rows[0];
@@ -517,6 +548,161 @@ Fecha de Asignación: ${fechaFormateada}
             
         } catch (error) {
             console.error(`❌ Error marcando como notificada: ${error.message}`);
+        }
+    }
+
+    /**
+     * Envía notificación administrativa sobre ejecución de matching
+     */
+    async sendAdminMatchingReport(matchingResults, summary) {
+        if (!this.transporter) {
+            console.warn('⚠️ No se puede enviar reporte admin: transporter no configurado');
+            return;
+        }
+
+        try {
+            // Obtener email de administrador desde variables de entorno o usar default
+            const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+            
+            if (!adminEmail) {
+                console.warn('⚠️ No se configuró email de administrador');
+                return;
+            }
+
+            const mailOptions = {
+                from: {
+                    name: 'Dental Matching Pro - Sistema',
+                    address: process.env.EMAIL_USER
+                },
+                to: adminEmail,
+                subject: `🤖 Reporte de Matching IA - ${summary.matched}/${summary.processed} asignaciones (${summary.successRate}%)`,
+                html: this.emailTemplateService.getAdminReportTemplate(matchingResults, summary),
+                text: this.createAdminPlainText(matchingResults, summary)
+            };
+
+            const result = await this.transporter.sendMail(mailOptions);
+            this.logNotification('success', `Reporte admin enviado: ${result.messageId}`, {
+                adminEmail,
+                summary
+            });
+            
+            console.log(`📧 Reporte de matching enviado al administrador: ${adminEmail}`);
+            
+        } catch (error) {
+            this.logNotification('error', `Error enviando reporte admin: ${error.message}`, {
+                summary,
+                error: error.message
+            });
+            console.error(`❌ Error enviando reporte administrativo:`, error);
+        }
+    }
+
+    /**
+     * Crea contenido de texto plano para reporte administrativo
+     */
+    createAdminPlainText(matchingResults, summary) {
+        const successRate = summary.successRate || 0;
+        const totalProcessed = summary.processed || 0;
+        const totalMatched = summary.matched || 0;
+
+        let content = `\nDENTAL MATCHING PRO - REPORTE DE MATCHING IA\n\nAdministrador del Sistema,\n\nSe ha completado una ejecución del algoritmo de matching inteligente.\n\nRESUMEN DE EJECUCIÓN:\n- Pacientes Procesados: ${totalProcessed}\n- Asignaciones Exitosas: ${totalMatched}\n- Tasa de Éxito: ${successRate}%\n- Tiempo de Ejecución: ${summary.duration || 'N/A'}\n- Fecha y Hora: ${new Date().toLocaleString('es-ES')}\n\n`;
+
+        if (successRate >= 80) {
+            content += `ESTADO: EXCELENTE RENDIMIENTO\nEl sistema ha alcanzado una tasa de éxito superior al 80%.\n\n`;
+        } else if (successRate >= 60) {
+            content += `ESTADO: RENDIMIENTO MODERADO\nLa tasa de éxito del ${successRate}% sugiere posibles ajustes.\n\n`;
+        } else {
+            content += `ESTADO: RENDIMIENTO BAJO - ATENCIÓN REQUERIDA\nLa tasa de éxito del ${successRate}% indica problemas que requieren atención.\n\n`;
+        }
+
+        if (matchingResults && matchingResults.length > 0) {
+            content += `ASIGNACIONES REALIZADAS:\n`;
+            matchingResults.slice(0, 10).forEach((result, index) => {
+                content += `${index + 1}. ${result.estudiante?.nombre_completo || 'Estudiante'} → ${result.tratamiento || 'Tratamiento'} (Score: ${(result.score * 100).toFixed(1)}%)\n`;
+            });
+            
+            if (matchingResults.length > 10) {
+                content += `... y ${matchingResults.length - 10} asignaciones adicionales\n`;
+            }
+        }
+
+        content += `\nSistema de Matching Dental - Panel Administrativo\nAlgoritmo IA v2.1\nGenerado automáticamente el ${new Date().toLocaleString('es-ES')}\n\nEste es un correo automático del sistema de administración.`;
+
+        return content.trim();
+    }
+
+    /**
+     * Obtiene el nombre del día en español
+     */
+    getDayName(date) {
+        const days = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+        return days[date.getDay()];
+    }
+
+    /**
+     * Envía notificación de matching mejorada con detalles específicos
+     */
+    async sendEnhancedMatchingNotification(paciente, estudiante, matchingDetails) {
+        try {
+            // Notificación al estudiante con templates profesionales
+            const studentMailOptions = {
+                from: {
+                    name: 'Clínica Dental Universitaria',
+                    address: process.env.EMAIL_USER
+                },
+                to: estudiante.email,
+                subject: `🦷 Nueva Asignación - ${paciente.nombre_completo || paciente.nombre} (${matchingDetails.dia_semana} ${matchingDetails.hora_inicio}-${matchingDetails.hora_fin})`,
+                html: this.emailTemplateService.getStudentNotificationTemplate(estudiante, paciente, matchingDetails)
+            };
+
+            // Notificación al paciente con templates profesionales
+            const patientMailOptions = {
+                from: {
+                    name: 'Clínica Dental Universitaria',
+                    address: process.env.EMAIL_USER
+                },
+                to: paciente.email,
+                subject: `✅ Su Caso Asignado - Estudiante ${estudiante.nombre_completo || estudiante.nombre}`,
+                html: this.emailTemplateService.getPatientNotificationTemplate(paciente, estudiante, matchingDetails)
+            };
+
+            // Enviar ambos correos
+            const [studentResult, patientResult] = await Promise.allSettled([
+                this.sendEmailWithRetry(studentMailOptions, 'estudiante'),
+                this.sendEmailWithRetry(patientMailOptions, 'paciente')
+            ]);
+
+            let success = true;
+            let message = 'Notificaciones enviadas exitosamente';
+            
+            if (studentResult.status === 'rejected') {
+                success = false;
+                message += ` (Error estudiante: ${studentResult.reason})`;
+            }
+            
+            if (patientResult.status === 'rejected') {
+                success = false;
+                message += ` (Error paciente: ${patientResult.reason})`;
+            }
+
+            return {
+                success,
+                message,
+                studentNotification: studentResult.status === 'fulfilled' ? studentResult.value : null,
+                patientNotification: patientResult.status === 'fulfilled' ? patientResult.value : null
+            };
+
+        } catch (error) {
+            this.logNotification('error', `Error en notificación mejorada: ${error.message}`, {
+                paciente: paciente.id,
+                estudiante: estudiante.id,
+                error: error.message
+            });
+            
+            return {
+                success: false,
+                message: `Error enviando notificaciones: ${error.message}`
+            };
         }
     }
 }

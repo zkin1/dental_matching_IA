@@ -63,7 +63,7 @@ CREATE TABLE `asignaciones` (
   `id` int NOT NULL AUTO_INCREMENT,
   `id_paciente` int NOT NULL,
   `id_estudiante` int NOT NULL,
-  `codigo_acceso` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `codigo_acceso` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
   `fecha_asignacion` datetime(3) DEFAULT CURRENT_TIMESTAMP(3),
   `score_compatibilidad` decimal(3,2) DEFAULT NULL,
   `algoritmo_version` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT '1.0',
@@ -74,10 +74,15 @@ CREATE TABLE `asignaciones` (
   `fecha_actualizacion` datetime(3) DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   `observaciones_estudiante` text COLLATE utf8mb4_unicode_ci,
   `observaciones_sistema` text COLLATE utf8mb4_unicode_ci,
+  `justificacion_asignacion` text COLLATE utf8mb4_unicode_ci,
   `motivo_cancelacion` text COLLATE utf8mb4_unicode_ci,
   `notificado_por_email` tinyint(1) DEFAULT '0',
   `fecha_notificacion` datetime(3) DEFAULT NULL,
   `recordatorios_enviados` int DEFAULT '0',
+  `especialidad_asignada` varchar(100) DEFAULT NULL,
+  `dia_semana_asignado` varchar(20) DEFAULT NULL,
+  `hora_inicio_asignada` time DEFAULT NULL,
+  `hora_fin_asignada` time DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_estado` (`estado`),
   KEY `idx_fecha_asignacion` (`fecha_asignacion`),
@@ -110,7 +115,7 @@ DROP TABLE IF EXISTS `codigos_acceso`;
 CREATE TABLE `codigos_acceso` (
   `id` int NOT NULL AUTO_INCREMENT,
   `id_estudiante` int NOT NULL,
-  `codigo_acceso` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `codigo_acceso` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
   `fecha_generacion` datetime(3) DEFAULT CURRENT_TIMESTAMP(3),
   `fecha_expiracion` datetime(3) NOT NULL,
   `activo` tinyint(1) DEFAULT '1',
@@ -425,6 +430,38 @@ UNLOCK TABLES;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+--
+-- Table structure for table `requerimientos_paciente`
+--
+
+DROP TABLE IF EXISTS `requerimientos_paciente`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `requerimientos_paciente` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `id_paciente` int NOT NULL,
+  `especialidad_requerida` varchar(100) DEFAULT NULL,
+  `clinica_preferida` varchar(100) DEFAULT NULL,
+  `urgencia` varchar(20) DEFAULT NULL,
+  `dias_disponibles` json DEFAULT NULL,
+  `horarios_preferidos` json DEFAULT NULL,
+  `notas_adicionales` text,
+  `activo` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_id_paciente` (`id_paciente`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `requerimientos_paciente`
+--
+
+LOCK TABLES `requerimientos_paciente` WRITE;
+/*!40000 ALTER TABLE `requerimientos_paciente` DISABLE KEYS */;
+/*!40000 ALTER TABLE `requerimientos_paciente` ENABLE KEYS */;
+UNLOCK TABLES;
+
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-08-30 16:35:04
+-- Dump completed on 2025-09-03 19:46:00

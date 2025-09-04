@@ -188,7 +188,7 @@ async function setupLegacyCompatibility() {
     const rateLimit = require('express-rate-limit');
     const matchingLimiter = rateLimit({
         windowMs: 1 * 60 * 1000, // 1 minuto
-        max: process.env.NODE_ENV === 'development' ? 100 : 5, // 100 en dev, 5 en prod
+        max: process.env.NODE_ENV === 'development' ? 10000 : 5, // 10000 en dev, 5 en prod
         message: {
             success: false,
             error: 'MATCHING_RATE_LIMIT_EXCEEDED',
@@ -220,6 +220,15 @@ async function setupLegacyCompatibility() {
         console.log('✅ Ruta de dashboard configurada');
     } catch (dashboardError) {
         console.warn('⚠️  Error montando ruta de dashboard:', dashboardError.message);
+    }
+    
+    // Ruta para estudiantes (consulta de pacientes por código)
+    try {
+        const studentRoutes = require('./routes/student');
+        app.use('/api/student', studentRoutes);
+        console.log('✅ Ruta de estudiantes configurada');
+    } catch (studentError) {
+        console.warn('⚠️  Error montando ruta de estudiantes:', studentError.message);
     }
     
     console.log('✅ Configuración de rutas completada');

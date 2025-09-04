@@ -176,14 +176,5 @@ CREATE TABLE IF NOT EXISTS performance_metrics (
     INDEX idx_metric_value (metric_value)
 ) ENGINE=InnoDB;
 
--- Insert default admin user (password should be changed immediately)
-INSERT IGNORE INTO users (email, password, nombre_completo, role, permissions, status, email_verified) 
-VALUES (
-    'admin@dentalmatching.com',
-    '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LeQ0+4XjV4HJVH.8e', -- 'admin123' - CHANGE THIS!
-    'Administrador Sistema',
-    'admin',
-    '["read", "write", "delete", "manage_users", "manage_system"]',
-    'active',
-    TRUE
-);
+-- Default admin user creation removed to avoid test data
+-- To create admin user, run: npm run db:create-admin

@@ -939,8 +939,8 @@
   background: linear-gradient(135deg, #10b981, #059669);
 }
 
-.data-source-indicator.simulated-data {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+.data-source-indicator.offline-data {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
   animation: pulse 3s infinite;
 }
 

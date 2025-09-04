@@ -27,6 +27,8 @@
     "migrate:rollback": "node scripts/migrate.js rollback",
     "db:seed": "node scripts/seed.js",
     "db:reset": "npm run migrate:rollback && npm run migrate && npm run db:seed",
+    "db:clean": "node scripts/clean-test-data.js",
+    "db:create-admin": "node scripts/create-admin.js",
     "build": "npm run lint && npm run test",
     "validate": "npm run lint && npm run test:coverage",
     "precommit": "npm run lint:fix && npm run format",

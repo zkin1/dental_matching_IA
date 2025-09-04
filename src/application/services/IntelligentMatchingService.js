@@ -5,6 +5,7 @@ const SymptomAnalyzer = require('../../core/ai/SymptomAnalyzer');
 const Assignment = require('../../core/entities/Assignment');
 const { BusinessLogicError } = require('../../shared/errors/AppError');
 const logger = require('../../shared/utils/logger');
+const autoNotificationService = require('../../../services/autoNotificationService');
 
 /**
  * Servicio de Matching Inteligente con Algoritmos de IA/ML
@@ -289,6 +290,18 @@ class IntelligentMatchingService {
             
             console.log(`🎉 Asignación completa creada exitosamente para paciente ${patient.id}`);
             
+            // 7. Enviar notificaciones por email
+            try {
+                const notificationResult = await autoNotificationService.sendAssignmentNotifications({
+                    paciente_id: patient.id,
+                    estudiante_id: student.id,
+                    fecha_asignacion: fechaAsignacion
+                });
+                console.log(`📧 Notificaciones enviadas: ${notificationResult.success ? 'Exitoso' : 'Error'}`);
+            } catch (notificationError) {
+                console.warn(`⚠️ Error enviando notificaciones: ${notificationError.message}`);
+            }
+            
             return {
                 id: assignmentId,
                 paciente_id: patient.id,
@@ -397,12 +410,31 @@ class IntelligentMatchingService {
      * Genera código de acceso simple
      */
     generateAccessCode() {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        let result = '';
-        for (let i = 0; i < 8; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        const crypto = require('crypto');
+        
+        // Generar una cadena aleatoria criptográficamente segura
+        const timestamp = Date.now().toString();
+        const randomBytes = crypto.randomBytes(16).toString('hex');
+        const machineId = process.pid.toString(); // Process ID para más entropía
+        
+        // Combinar timestamp, bytes aleatorios y machine ID
+        const combined = `${timestamp}-${randomBytes}-${machineId}`;
+        
+        // Crear hash SHA-256 y tomar los primeros 24 caracteres
+        const hash = crypto.createHash('sha256').update(combined).digest('hex');
+        
+        // Formatear para ser más difícil de descifrar: mezclar mayúsculas, minúsculas y números
+        let secureCode = '';
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        
+        // Usar el hash como semilla para seleccionar caracteres
+        for (let i = 0; i < 24; i++) {
+            const index = parseInt(hash.substr(i, 2), 16) % chars.length;
+            secureCode += chars[index];
         }
-        return result;
+        
+        // Insertar guiones para mayor seguridad visual
+        return `${secureCode.substr(0, 6)}-${secureCode.substr(6, 6)}-${secureCode.substr(12, 6)}-${secureCode.substr(18, 6)}`;
     }
 
     /**

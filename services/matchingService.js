@@ -229,6 +229,26 @@ class AdvancedMatchingService {
             };
             
             console.log(`\n🎉 Matching completado: ${totalMatched}/${totalProcessed} asignaciones (${result.successRate}%) en ${duration}ms`);
+            
+            // ENVIAR REPORTE ADMINISTRATIVO CON TEMPLATES PROFESIONALES
+            if (totalProcessed > 0) {
+                try {
+                    console.log(`📧 Enviando reporte administrativo de matching...`);
+                    await autoNotificationService.sendAdminMatchingReport(matchingResults, {
+                        processed: totalProcessed,
+                        matched: totalMatched,
+                        successRate: result.successRate,
+                        duration: result.duration,
+                        averageScore: matchingResults.length > 0 ? 
+                            (matchingResults.reduce((sum, r) => sum + (r.score * 100), 0) / matchingResults.length).toFixed(1) : 
+                            '0'
+                    });
+                } catch (adminError) {
+                    console.error('⚠️ Error enviando reporte administrativo:', adminError.message);
+                    // No fallar el matching por error en reporte admin
+                }
+            }
+            
             return result;
             
         } catch (error) {
@@ -1185,48 +1205,28 @@ class AdvancedMatchingService {
     }
     
     /**
-     * 📧 NOTIFICACIONES PERSONALIZADAS ESPECÍFICAS
-     * Envía mensajes exactos como "Ana se ha asignado a tu clase de 8:00 a 13:00 del día lunes"
+     * 📧 NOTIFICACIONES PROFESIONALES MEJORADAS
+     * Utiliza los templates profesionales del EmailTemplateService
      */
     async enviarNotificacionesAsignacion(paciente, matchingResult) {
         try {
-            const fechaFormateada = new Date(matchingResult.fecha_asignacion).toLocaleDateString('es-ES', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
+            console.log(`📧 Enviando notificaciones profesionales para asignación: ${paciente.nombre_completo} → ${matchingResult.estudiante.nombre_completo}`);
             
-            // NOTIFICACIÓN AL ESTUDIANTE (formato específico solicitado)
-            const mensajeEstudiante = `${paciente.nombre_completo} se ha asignado a tu clase de ${matchingResult.hora_inicio} a ${matchingResult.hora_fin} del día ${matchingResult.dia_semana} (${fechaFormateada}) en ${matchingResult.clinica}. Tratamiento: ${matchingResult.tratamiento}`;
+            // Usar el método mejorado de notificaciones con templates profesionales
+            const notificationResult = await autoNotificationService.sendEnhancedMatchingNotification(
+                paciente, 
+                matchingResult.estudiante, 
+                matchingResult
+            );
             
-            await autoNotificationService.crearNotificacion({
-                id_estudiante: matchingResult.estudiante.id_estudiante,
-                email_destino: matchingResult.estudiante.email,
-                tipo_notificacion: 'nuevo_paciente',
-                asunto: 'Nueva Asignación de Paciente',
-                mensaje: mensajeEstudiante,
-                id_referencia: paciente.id,
-                tipo_referencia: 'asignacion'
-            });
-            
-            // NOTIFICACIÓN AL PACIENTE
-            if (paciente.email) {
-                const mensajePaciente = `Hola ${paciente.nombre_completo}, has sido asignado/a con el estudiante ${matchingResult.estudiante.nombre_completo} para tu tratamiento de ${matchingResult.tratamiento}. Tu cita será el ${matchingResult.dia_semana} de ${matchingResult.hora_inicio} a ${matchingResult.hora_fin} en ${matchingResult.clinica}.`;
-                
-                await autoNotificationService.crearNotificacion({
-                    id_paciente: paciente.id,
-                    email_destino: paciente.email,
-                    tipo_notificacion: 'asignacion_confirmada',
-                    asunto: 'Asignación de Tratamiento Confirmada',
-                    mensaje: mensajePaciente,
-                    id_referencia: matchingResult.estudiante.id_estudiante,
-                    tipo_referencia: 'asignacion'
-                });
+            if (notificationResult.success) {
+                console.log(`✅ Notificaciones enviadas exitosamente para la asignación`);
+            } else {
+                console.error(`⚠️ Problemas en notificaciones: ${notificationResult.message}`);
             }
             
         } catch (error) {
-            console.error('⚠️ Error enviando notificaciones:', error.message);
+            console.error('❌ Error enviando notificaciones profesionales:', error.message);
         }
     }
     

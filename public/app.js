@@ -1421,20 +1421,20 @@ class DentalMatchingApp {
       // Fallback mínimo si incluso esto falla
       return {
         algorithm: {
-          modelAccuracy: 87.5,
-          avgResponseTime: 1.6,
+          modelAccuracy: 0,
+          avgResponseTime: 0,
           totalAnalyzedCases: 0,
           casesToday: 0,
           casesThisMonth: 0,
           autoVsManual: {
             automatic: 0,
             manual: 0,
-            automationRate: 95
+            automationRate: 0
           }
         },
         performance: {
           totalMatches: 0,
-          averageScore: 8.7,
+          averageScore: 0,
           matchesToday: 0,
           firstMatchDate: null,
           lastMatchDate: null
@@ -3634,6 +3634,149 @@ const additionalStyles = `
 
 document.head.insertAdjacentHTML('beforeend', additionalStyles);
 
+// Estilos adicionales para justificación y mejoras de asignaciones
+const justificationStyles = `
+<style>
+/* Estilos para la justificación de asignaciones */
+.justification-content {
+  margin-top: 16px;
+}
+
+.justification-box {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.justification-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+}
+
+.justification-h3 {
+  color: #1e40af;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.justification-h3::before {
+  content: '📋';
+  font-size: 20px;
+}
+
+.justification-h4 {
+  color: #3730a3;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 20px 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.justification-h4::before {
+  content: '🎯';
+  font-size: 16px;
+}
+
+.justification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  border-left: 3px solid #3b82f6;
+  transition: all 0.2s ease;
+}
+
+.justification-item:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateX(4px);
+}
+
+.item-number {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.item-text {
+  flex: 1;
+  line-height: 1.6;
+  color: #374151;
+}
+
+.item-text strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.justification-box p {
+  color: #4b5563;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.justification-box p:last-child {
+  margin-bottom: 0;
+}
+
+/* Mejorar el botón Ver */
+.btn-icon[title="Ver detalles"] {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white !important;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+  position: relative;
+}
+
+.btn-icon[title="Ver detalles"]:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-icon[title="Ver detalles"]::before {
+  content: '👁️ Ver';
+  font-family: inherit;
+}
+
+.btn-icon[title="Ver detalles"] .fas {
+  display: none !important;
+}
+</style>
+`;
+
+document.head.insertAdjacentHTML('beforeend', justificationStyles);
+
 /* ===================================
    FUNCIONES DE ESTUDIANTES
    ================================== */
@@ -4411,6 +4554,21 @@ function showAssignmentModal(assignment, mode = 'view') {
                 }
               </div>
             </div>
+
+            <!-- Justificación de la Asignación -->
+            ${assignment.justificacion_asignacion ? `
+            <div class="detail-section full-width">
+              <h3 class="section-title">
+                <i class="fas fa-lightbulb"></i>
+                ¿Por qué se realizó esta asignación?
+              </h3>
+              <div class="justification-content">
+                <div class="justification-box">
+                  ${formatJustificationText(assignment.justificacion_asignacion)}
+                </div>
+              </div>
+            </div>
+            ` : ''}
           </div>
         </div>
         
@@ -4463,6 +4621,31 @@ function closeAssignmentModal() {
     modal.classList.add('closing');
     setTimeout(() => modal.remove(), 300);
   }
+}
+
+// Formatear texto de justificación para mostrar en HTML
+function formatJustificationText(justificationText) {
+  if (!justificationText) return 'No hay justificación disponible.';
+  
+  // Convertir markdown básico a HTML
+  let html = justificationText
+    // Convertir títulos
+    .replace(/^### (.*$)/gm, '<h4 class="justification-h4">$1</h4>')
+    .replace(/^## (.*$)/gm, '<h3 class="justification-h3">$1</h3>')
+    // Convertir texto en negrita
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Convertir listas numeradas
+    .replace(/^(\d+)\.\s+(.*)$/gm, '<div class="justification-item"><span class="item-number">$1</span><span class="item-text">$2</span></div>')
+    // Convertir saltos de línea
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+  
+  // Envolver en párrafos
+  if (!html.includes('<p>') && !html.includes('<h3>') && !html.includes('<h4>')) {
+    html = '<p>' + html + '</p>';
+  }
+  
+  return html;
 }
 
 // Guardar cambios de la asignación
@@ -4632,23 +4815,17 @@ async function updateDashboardStats(forceRefresh = false) {
     console.error('❌ Error updating dashboard stats:', error);
     hideLoadingSpinners();
     
-    // Mostrar indicador de datos simulados
-    showDataSourceIndicator('simulated');
+    // Mostrar indicador de error
+    showDataSourceIndicator('offline');
     
-    // Usar datos simulados como fallback
-    const fallbackData = generateFallbackDashboardData();
-    updateDashboardWithData({
-      patients: { success: true, data: fallbackData.patients },
-      students: { success: true, data: fallbackData.students },
-      assignments: { success: true, data: fallbackData.assignments },
-      timestamp: Date.now()
-    });
+    // Mostrar estado de error en lugar de datos simulados
+    updateDashboardWithData(getEmptyDashboardData());
     
-    // Mostrar mensaje de rate limit si es el caso
+    // Mostrar mensaje de error
     if (error.message && error.message.includes('RATE_LIMIT')) {
-      toastManager.show('Rate limit alcanzado. Mostrando datos simulados.', 'warning', 4000);
+      toastManager.show('Rate limit alcanzado. Reintentando en 30 segundos.', 'error', 4000);
     } else {
-      toastManager.show('Error de conexión. Mostrando datos simulados.', 'warning', 4000);
+      toastManager.show('Error de conexión con la base de datos.', 'error', 4000);
     }
   }
 }
@@ -4661,17 +4838,17 @@ function showDataSourceIndicator(type) {
 
   const indicator = document.createElement('div');
   indicator.id = 'dataSourceIndicator';
-  indicator.className = `data-source-indicator ${type === 'real' ? 'real-data' : type === 'cached' ? 'cached-data' : 'simulated-data'}`;
+  indicator.className = `data-source-indicator ${type === 'real' ? 'real-data' : type === 'cached' ? 'cached-data' : 'offline-data'}`;
   
   const messages = {
     real: '📡 Datos en tiempo real',
     cached: '💾 Datos en caché',
-    simulated: '🎭 Datos simulados'
+    offline: '⚠️ Sin conexión'
   };
   
   indicator.innerHTML = `
-    <i class="fas fa-${type === 'real' ? 'satellite-dish' : type === 'cached' ? 'database' : 'flask'}"></i>
-    ${messages[type] || 'Datos cargados'}
+    <i class="fas fa-${type === 'real' ? 'satellite-dish' : type === 'cached' ? 'database' : 'exclamation-triangle'}"></i>
+    ${messages[type] || 'Estado desconocido'}
   `;
   
   document.body.appendChild(indicator);
@@ -4687,92 +4864,7 @@ function showDataSourceIndicator(type) {
   }
 }
 
-// Función para generar datos simulados realistas
-function generateFallbackDashboardData() {
-  const currentDate = new Date();
-  const patients = [];
-  const students = [];
-  const assignments = [];
-
-  // Generar pacientes realistas
-  const patientNames = [
-    'María González', 'Carlos Rodríguez', 'Ana López', 'José Martínez',
-    'Carmen Sánchez', 'Miguel Fernández', 'Isabel García', 'Antonio Pérez',
-    'Lucía Moreno', 'Francisco Jiménez', 'Elena Ruiz', 'Manuel Díaz',
-    'Pilar Álvarez', 'Rafael Romero', 'Teresa Navarro', 'Javier Torres'
-  ];
-  
-  const treatments = [
-    'Limpieza dental', 'Empaste', 'Endodoncia', 'Extracción',
-    'Ortodoncia', 'Blanqueamiento', 'Implante', 'Corona',
-    'Puente dental', 'Prótesis', 'Periodoncia', 'Cirugía oral'
-  ];
-  
-  for (let i = 0; i < 15 + Math.floor(Math.random() * 20); i++) {
-    patients.push({
-      id: 1000 + i,
-      nombre_completo: patientNames[i % patientNames.length] + ` (${1000 + i})`,
-      edad: 18 + Math.floor(Math.random() * 65),
-      tipo_tratamiento_inferido: treatments[Math.floor(Math.random() * treatments.length)],
-      estado: ['pendiente', 'activo', 'completado'][Math.floor(Math.random() * 3)],
-      fecha_registro: new Date(currentDate.getTime() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
-      prioridad: ['alta', 'media', 'baja'][Math.floor(Math.random() * 3)]
-    });
-  }
-
-  // Generar estudiantes realistas
-  const studentNames = [
-    'Andrea Castillo', 'David Herrera', 'Cristina Vega', 'Pablo Morales',
-    'Natalia Silva', 'Adrián Ramos', 'Beatriz Castro', 'Sergio Ortega',
-    'Valentina Pena', 'Marcos Delgado', 'Sofía Vargas', 'Daniel Mendoza'
-  ];
-  
-  const specialties = [
-    ['Endodoncia', 'Periodoncia'], ['Ortodoncia', 'Cirugía'], 
-    ['Implantología', 'Estética'], ['Pediatría', 'Prevención'],
-    ['Prótesis', 'Rehabilitación'], ['Cirugía Oral', 'Patología']
-  ];
-  
-  for (let i = 0; i < 10 + Math.floor(Math.random() * 15); i++) {
-    const casesCompleted = Math.floor(Math.random() * 25);
-    const casesActive = Math.floor(Math.random() * 8);
-    const casesNeeded = Math.max(0, 30 - casesCompleted - casesActive);
-    
-    students.push({
-      id: 2000 + i,
-      nombre_completo: studentNames[i % studentNames.length],
-      año_carrera: ['3ro', '4to', '5to'][Math.floor(Math.random() * 3)],
-      especialidades: specialties[Math.floor(Math.random() * specialties.length)],
-      casos_completados: casesCompleted,
-      casos_activos: casesActive,
-      casos_necesarios: casesNeeded,
-      status: Math.random() > 0.1 ? 'activo' : 'inactivo',
-      promedio: (7.5 + Math.random() * 2.5).toFixed(1)
-    });
-  }
-
-  // Generar asignaciones realistas
-  for (let i = 0; i < patients.length * 0.7; i++) {
-    const patient = patients[Math.floor(Math.random() * patients.length)];
-    const student = students[Math.floor(Math.random() * students.length)];
-    
-    assignments.push({
-      id: 3000 + i,
-      paciente_id: patient.id,
-      estudiante_id: student.id,
-      paciente_nombre: patient.nombre_completo,
-      estudiante_nombre: student.nombre_completo,
-      tratamiento: patient.tipo_tratamiento_inferido,
-      estado: ['asignado', 'en_progreso', 'completado', 'pendiente'][Math.floor(Math.random() * 4)],
-      fecha_asignacion: new Date(currentDate.getTime() - Math.random() * 60 * 24 * 60 * 60 * 1000).toISOString(),
-      prioridad: patient.prioridad,
-      progreso: Math.floor(Math.random() * 100),
-      compatibilidad: (70 + Math.random() * 30).toFixed(1)
-    });
-  }
-
-  return { patients, students, assignments };
-}
+// Función eliminada - no usar datos simulados
 
 // Función para parsear respuestas de forma segura con manejo de rate limit
 async function parseResponseSafely(responsePromise) {
@@ -4800,10 +4892,10 @@ async function parseResponseSafely(responsePromise) {
 
 // Función centralizada para actualizar el dashboard con datos
 function updateDashboardWithData(dashboardData) {
-  // Si no hay datos reales, generar datos simulados
+  // Si no hay datos reales, mostrar estado vacío
   if (!dashboardData.patients.success && !dashboardData.students.success && !dashboardData.assignments.success) {
-    console.log('📊 Generando datos simulados para demostración');
-    dashboardData = generateSimulatedData();
+    console.log('⚠️ Sin conexión a datos reales - mostrando estado vacío');
+    dashboardData = getEmptyDashboardData();
   }
 
   // Actualizar timestamp
@@ -4828,57 +4920,26 @@ function updateDashboardWithData(dashboardData) {
   hideLoadingSpinners();
 }
 
-// Generar datos simulados realistas
-function generateSimulatedData() {
-  const currentTime = new Date();
-  const today = currentTime.toISOString().split('T')[0];
-  
-  // Datos simulados de pacientes
-  const simulatedPatients = Array.from({ length: 28 }, (_, i) => ({
-    id: i + 1,
-    nombre_completo: `Paciente ${i + 1}`,
-    fecha_registro: Math.random() > 0.8 ? today : '2024-01-15',
-    estado: Math.random() > 0.6 ? 'pendiente' : 'asignado',
-    prioridad: ['alta', 'media', 'baja'][Math.floor(Math.random() * 3)],
-    tipo_tratamiento_inferido: ['Endodoncia', 'Destartraje', 'Exodoncia'][Math.floor(Math.random() * 3)]
-  }));
-
-  // Datos simulados de estudiantes
-  const simulatedStudents = Array.from({ length: 15 }, (_, i) => ({
-    id: i + 1,
-    nombre_completo: `Estudiante ${i + 1}`,
-    estado: 'activo',
-    casos_activos: Math.floor(Math.random() * 5),
-    casos_necesarios: 8,
-    año_carrera: Math.floor(Math.random() * 5) + 1,
-    especialidades: ['Endodoncia', 'Destartraje', 'Exodoncia'][Math.floor(Math.random() * 3)]
-  }));
-
-  // Datos simulados de asignaciones
-  const simulatedAssignments = Array.from({ length: 22 }, (_, i) => ({
-    id: i + 1,
-    paciente_nombre: simulatedPatients[i % simulatedPatients.length].nombre_completo,
-    estudiante_nombre: simulatedStudents[i % simulatedStudents.length].nombre_completo,
-    fecha_asignacion: Math.random() > 0.7 ? today + 'T' + currentTime.toTimeString().split(' ')[0] : '2024-01-15T10:00:00',
-    estado: ['asignado', 'en_tratamiento', 'completado'][Math.floor(Math.random() * 3)],
-    score_compatibilidad: 0.7 + (Math.random() * 0.25) // Entre 70% y 95%
-  }));
-
+// Datos vacíos para cuando no hay conexión
+function getEmptyDashboardData() {
   return {
     patients: {
-      success: true,
-      data: simulatedPatients,
-      total: simulatedPatients.length
+      success: false,
+      data: [],
+      total: 0,
+      message: 'Sin conexión a la base de datos'
     },
     students: {
-      success: true,
-      data: simulatedStudents,
-      total: simulatedStudents.length
+      success: false,
+      data: [],
+      total: 0,
+      message: 'Sin conexión a la base de datos'
     },
     assignments: {
-      success: true,
-      data: simulatedAssignments,
-      total: simulatedAssignments.length
+      success: false,
+      data: [],
+      total: 0,
+      message: 'Sin conexión a la base de datos'
     }
   };
 }

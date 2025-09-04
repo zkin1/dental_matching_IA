@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const nodemailer = require('nodemailer');
+const emailTemplateService = require('../services/emailTemplateService');
 
 // Configuración del transportador de correo
 const transporter = nodemailer.createTransport({
