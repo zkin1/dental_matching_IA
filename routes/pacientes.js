@@ -75,6 +75,45 @@ router.get('/', async (req, res) => {
   }
 });
 
+// POST /api/pacientes - Crear nuevo paciente
+router.post('/', async (req, res) => {
+  try {
+    const db = await getConnection();
+    const { nombre_completo, edad, telefono, email, ciudad, sintomas_seleccionados, nivel_dolor, dias_disponibles, horario_preferencia, tipo_tratamiento_inferido, tipo_tratamiento, prioridad, urgencia, descripcion_caso } = req.body;
+
+    if (!nombre_completo || !telefono || !ciudad) {
+      return res.status(400).json({ success: false, error: 'Nombre, telefono y ciudad son obligatorios' });
+    }
+
+    const [result] = await db.execute(
+      `INSERT INTO pacientes (nombre_completo, edad, telefono, email, ciudad, sintomas_seleccionados, nivel_dolor, dias_disponibles, horario_preferencia, tipo_tratamiento_inferido, prioridad, estado, activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', 1)`,
+      [
+        nombre_completo,
+        edad || null,
+        telefono,
+        email || null,
+        ciudad,
+        sintomas_seleccionados ? JSON.stringify(sintomas_seleccionados) : null,
+        nivel_dolor || 0,
+        dias_disponibles || null,
+        horario_preferencia || null,
+        tipo_tratamiento_inferido || tipo_tratamiento || null,
+        prioridad || urgencia || 'Moderada'
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Paciente registrado exitosamente',
+      data: { id: result.insertId, nombre_completo, estado: 'pendiente' }
+    });
+  } catch (error) {
+    const { handleRouteError } = require('../src/shared/utils/errorHandlerHelper');
+    handleRouteError(error, req, res, 'crear_paciente');
+  }
+});
+
 // GET /api/pacientes/stats - Obtener estadísticas de pacientes
 router.get('/stats', async (req, res) => {
   try {

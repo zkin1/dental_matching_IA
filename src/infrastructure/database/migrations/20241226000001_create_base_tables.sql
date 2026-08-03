@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS pacientes (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB;
 
--- Create estudiantes table
-CREATE TABLE IF NOT EXISTS estudiantes (
+-- Create estudiantes_odontologia table
+CREATE TABLE IF NOT EXISTS estudiantes_odontologia (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre_completo VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS asignaciones (
     INDEX idx_fecha_asignacion (fecha_asignacion),
     
     FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE,
-    FOREIGN KEY (estudiante_id) REFERENCES estudiantes(id) ON DELETE CASCADE
+    FOREIGN KEY (estudiante_id) REFERENCES estudiantes_odontologia(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Create ai_matching_results table
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS ai_matching_results (
     INDEX idx_usado (usado_en_asignacion),
     
     FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE,
-    FOREIGN KEY (estudiante_id) REFERENCES estudiantes(id) ON DELETE CASCADE,
+    FOREIGN KEY (estudiante_id) REFERENCES estudiantes_odontologia(id) ON DELETE CASCADE,
     
     UNIQUE KEY unique_matching (paciente_id, estudiante_id, algoritmo)
 ) ENGINE=InnoDB;

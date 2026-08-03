@@ -6,29 +6,14 @@ const BaseRepository = require('./BaseRepository');
  */
 class UserRepository extends BaseRepository {
     constructor() {
-        super('usuarios');
+        super('users');
     }
 
     /**
      * Busca un usuario por email
      */
     async findByEmail(email) {
-        const query = `
-            SELECT 
-                u.*,
-                CASE 
-                    WHEN u.role = 'student' THEN e.codigoEstudiante
-                    ELSE NULL
-                END as codigoEstudiante,
-                CASE 
-                    WHEN u.role = 'student' THEN e.especialidades
-                    ELSE NULL
-                END as especialidades
-            FROM usuarios u
-            LEFT JOIN estudiantes_odontologia e ON u.relacionId = e.id AND u.role = 'student'
-            WHERE u.email = ? AND u.estado = 'activo'
-        `;
-        
+        const query = `SELECT * FROM users WHERE email = ? AND status = 'active'`;
         const result = await this.executeQuery(query, [email]);
         return result.rows[0] || null;
     }
@@ -49,18 +34,18 @@ class UserRepository extends BaseRepository {
     }
 
     /**
-     * Actualiza el refresh token del usuario
+     * Actualiza el refresh token del usuario (no-op, tabla no tiene columna refreshToken)
      */
     async updateRefreshToken(userId, refreshToken) {
-        const query = 'UPDATE usuarios SET refreshToken = ?, updatedAt = NOW() WHERE id = ?';
-        return await this.executeQuery(query, [refreshToken, userId]);
+        // users table doesn't have refreshToken column - skip
+        return;
     }
 
     /**
-     * Actualiza el último login del usuario
+     * Actualiza el ultimo login del usuario
      */
     async updateLastLogin(userId) {
-        const query = 'UPDATE usuarios SET lastLogin = NOW(), updatedAt = NOW() WHERE id = ?';
+        const query = 'UPDATE users SET last_login = NOW() WHERE id = ?';
         return await this.executeQuery(query, [userId]);
     }
 

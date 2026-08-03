@@ -116,7 +116,7 @@ class DatabaseService {
         rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false'
       } : false,
       multipleStatements: false,
-      namedPlaceholders: true
+      namedPlaceholders: false
     };
 
     this.pool = mysql.createPool(config);

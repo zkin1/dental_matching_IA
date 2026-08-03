@@ -50,6 +50,14 @@ class BaseRepository {
     }
 
     /**
+     * Ejecuta query y retorna { rows } para compatibilidad
+     */
+    async executeQuery(query, params = []) {
+        const rows = await this.execute(query, params);
+        return { rows };
+    }
+
+    /**
      * Encuentra un registro por ID
      */
     async findById(id) {

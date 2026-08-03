@@ -97,7 +97,7 @@ class AuthService {
         }
 
         // Verificar estado del usuario
-        if (user.estado !== 'activo') {
+        if (user.status !== 'active' && user.estado !== 'activo') {
             throw new UnauthorizedError('Usuario inactivo o bloqueado');
         }
 

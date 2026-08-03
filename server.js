@@ -40,17 +40,6 @@ async function startServer() {
         // Agregar rutas legacy para compatibilidad
         await setupLegacyCompatibility();
         
-        // Inicializar y arrancar MatchingScheduler
-        console.log('🤖 Inicializando Sistema de Matching Automático...');
-        const matchingScheduler = require('./services/MatchingScheduler');
-        try {
-            await matchingScheduler.initialize();
-            await matchingScheduler.start();
-            console.log('✅ MatchingScheduler iniciado correctamente');
-        } catch (schedulerError) {
-            console.warn('⚠️  MatchingScheduler falló al iniciar:', schedulerError.message);
-        }
-        
         // Iniciar servidor HTTP
         const server = app.listen(PORT, HOST, () => {
             console.log('\n' + '='.repeat(70));
@@ -204,15 +193,6 @@ async function setupLegacyCompatibility() {
         console.warn('⚠️  Error montando ruta de matching:', matchingError.message);
     }
 
-    // Ruta de test para matching IA v3.0
-    try {
-        const matchingTestRoutes = require('./routes/matching-test');
-        app.use('/api/test-matching', matchingTestRoutes);
-        console.log('✅ Ruta de test matching IA v3.0 configurada');
-    } catch (testError) {
-        console.warn('⚠️  Error montando ruta de test:', testError.message);
-    }
-    
     // Ruta de dashboard
     try {
         const dashboardRoutes = require('./routes/dashboard');

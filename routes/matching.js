@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const matchingService = require('../services/matchingService');
+const { getConnection } = require('../config/database');
 
 // Ejecutar matching manual con IA v3.0
 router.post('/auto', async (req, res) => {
@@ -67,7 +68,6 @@ router.get('/stats', async (req, res) => {
 // Obtener estadísticas reales para analytics
 router.get('/real-stats', async (req, res) => {
     try {
-        const { getConnection } = require('../config/database');
         const db = await getConnection();
         
         // Obtener estadísticas de matching de los últimos 30 días
@@ -318,7 +318,6 @@ router.post('/manual', async (req, res) => {
         
         if (result.success) {
             // Marcar como manual en las observaciones del sistema
-            const { getConnection } = require('../config/database');
             const db = await getConnection();
             await db.execute(
                 'UPDATE asignaciones SET observaciones_sistema = ? WHERE id = ?',
@@ -381,7 +380,6 @@ router.delete('/undo/:asignacionId', async (req, res) => {
 // Obtener historial de matching con detalles
 router.get('/history', async (req, res) => {
     try {
-        const { getConnection } = require('../config/database');
         const db = await getConnection();
         
         const [history] = await db.execute(`
@@ -519,7 +517,6 @@ router.post('/analyze-symptoms', async (req, res) => {
 // NUEVA RUTA: Obtener estadísticas por tratamiento
 router.get('/stats/by-treatment', async (req, res) => {
     try {
-        const { getConnection } = require('../config/database');
         const db = await getConnection();
         
         const [stats] = await db.execute(`
@@ -554,7 +551,6 @@ router.get('/stats/by-treatment', async (req, res) => {
 // NUEVA RUTA: Obtener estadísticas por especialidad de estudiante
 router.get('/stats/by-speciality', async (req, res) => {
     try {
-        const { getConnection } = require('../config/database');
         const db = await getConnection();
         
         const [students] = await db.execute(`
@@ -580,59 +576,6 @@ router.get('/stats/by-speciality', async (req, res) => {
         res.status(500).json({
             success: false,
             message: error.message
-        });
-    }
-});
-
-// Obtener estado del scheduler en tiempo real
-router.get('/scheduler/status', async (req, res) => {
-    try {
-        const matchingScheduler = require('../services/MatchingScheduler');
-        const schedulerStats = matchingScheduler.getStats();
-        
-        // Obtener configuración actual del scheduler
-        const { getConnection } = require('../config/database');
-        const db = await getConnection();
-        
-        const [config] = await db.execute(`
-            SELECT config_key, config_value, enabled 
-            FROM matching_scheduler_config 
-            WHERE enabled = TRUE
-        `);
-
-        const configObject = {};
-        config.forEach(item => {
-            configObject[item.config_key] = item.config_value;
-        });
-
-        res.json({
-            success: true,
-            data: {
-                scheduler: {
-                    ...schedulerStats,
-                    status: schedulerStats.isInitialized ? 'running' : 'stopped',
-                    healthStatus: schedulerStats.isInitialized && 
-                                schedulerStats.successfulRuns > schedulerStats.failedRuns ? 'healthy' : 'warning'
-                },
-                configuration: configObject,
-                performance: {
-                    successRate: schedulerStats.totalRuns > 0 ? 
-                        ((schedulerStats.successfulRuns / schedulerStats.totalRuns) * 100).toFixed(2) + '%' : '100%',
-                    uptime: schedulerStats.totalRuns > 0 ? 
-                        `${Math.floor((Date.now() - (schedulerStats.lastRun || Date.now())) / 1000 / 60)} minutos desde última ejecución` : 
-                        'Sin ejecuciones previas',
-                    avgExecutionTime: '2.3s' // Simulado
-                }
-            },
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('❌ Error obteniendo estado del scheduler:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error al obtener estado del scheduler',
-            error: error.message
         });
     }
 });

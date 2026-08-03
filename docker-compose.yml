@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-dental_root_2024}
+      MYSQL_DATABASE: ${DB_NAME:-dental_matching}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD:-dental_root_2024}
+      DB_NAME: ${DB_NAME:-dental_matching}
+      JWT_SECRET: ${JWT_SECRET:-dental_jwt_secret_change_me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dental_refresh_secret_change_me}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Optional: AI triage agent. Requires an LLM reachable at LLM_BASE_URL.
+  # For Ollama running on the host use LLM_BASE_URL=http://host.docker.internal:11434/v1
+  ai-agent:
+    build: ./ai_agent
+    restart: unless-stopped
+    ports:
+      - "${AI_AGENT_PORT:-8001}:8001"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8001
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  mysql_data:

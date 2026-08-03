@@ -4,6 +4,142 @@
  */
 
 /* ===================================
+   AUTH MODULE
+   ================================== */
+
+const Auth = {
+  getToken() {
+    return localStorage.getItem('dental_token');
+  },
+  setToken(token) {
+    localStorage.setItem('dental_token', token);
+  },
+  setUser(user) {
+    localStorage.setItem('dental_user', JSON.stringify(user));
+  },
+  getUser() {
+    try { return JSON.parse(localStorage.getItem('dental_user')); } catch { return null; }
+  },
+  clear() {
+    localStorage.removeItem('dental_token');
+    localStorage.removeItem('dental_user');
+  },
+  isLoggedIn() {
+    return !!this.getToken();
+  },
+  getHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = this.getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+};
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  const submitBtn = document.getElementById('login-submit');
+
+  errorEl.style.display = 'none';
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Ingresando...';
+
+  try {
+    const res = await fetch(`${window.location.origin}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || data.error || 'Credenciales incorrectas');
+    }
+
+    Auth.setToken(data.data.tokens.accessToken);
+    Auth.setUser(data.data.user);
+    showApp();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesion';
+  }
+}
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app-layout').style.display = 'none';
+}
+
+async function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-layout').style.display = '';
+  const user = Auth.getUser();
+  if (user) {
+    const nameEl = document.getElementById('user-display-name');
+    const roleEl = document.getElementById('user-display-role');
+    if (nameEl) nameEl.textContent = user.nombre_completo || user.nombre || 'Admin';
+    if (roleEl) roleEl.textContent = user.role || 'Sistema';
+  }
+  // Initialize app if not already initialized
+  if (!app) {
+    toastManager = new ToastManager();
+    window.toastManager = toastManager;
+    app = new DentalMatchingApp();
+    window.app = app;
+    await app.init();
+  }
+}
+
+function logout() {
+  Auth.clear();
+  showLogin();
+}
+
+function openModal(title, bodyHtml) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = bodyHtml;
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+}
+
+function checkAuthOnLoad() {
+  if (Auth.isLoggedIn()) {
+    showApp();
+    return true;
+  } else {
+    showLogin();
+    return false;
+  }
+}
+
+// Patch fetch to auto-add auth header and handle 401
+const _originalFetch = window.fetch;
+window.fetch = function(url, options = {}) {
+  const token = Auth.getToken();
+  if (token) {
+    options.headers = options.headers || {};
+    if (!options.headers['Authorization']) {
+      options.headers['Authorization'] = 'Bearer ' + token;
+    }
+  }
+  return _originalFetch.call(this, url, options).then(function(response) {
+    if (response.status === 401) {
+      Auth.clear();
+      showLogin();
+    }
+    return response;
+  });
+};
+
+/* ===================================
    CONFIGURATION & CONSTANTS
    ================================== */
 
@@ -508,7 +644,7 @@ class ApiService {
     const url = `${this.baseUrl}/${endpoint}`;
     const defaultOptions = {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: Auth.getHeaders(),
       timeout: this.timeout,
       ...options
     };
@@ -524,6 +660,11 @@ class ApiService {
         });
 
         clearTimeout(timeoutId);
+
+        if (response.status === 401) {
+          logout();
+          throw new Error('Sesion expirada. Inicia sesion nuevamente.');
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -2264,13 +2405,166 @@ function analyzeScheduleCompatibility(patientPrefs, studentSchedules, assignment
 // Reemplazado por las nuevas funciones modernas arriba
 
 window.addPatient = function() {
-  console.log('➕ Adding new patient');
-  app?.uiRenderer.toastManager.info('Formulario de paciente próximamente', 3000);
+  openModal('Nuevo Paciente', `
+    <form id="patient-form" onsubmit="submitPatient(event)">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nombre completo *</label>
+          <input type="text" name="nombre_completo" required>
+        </div>
+        <div class="form-group">
+          <label>Edad</label>
+          <input type="number" name="edad" min="1" max="120">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Telefono *</label>
+          <input type="tel" name="telefono" required>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ciudad *</label>
+          <select name="ciudad" required>
+            <option value="Metropolitana">Metropolitana</option>
+            <option value="Valparaiso">Valparaiso</option>
+            <option value="Concepcion">Concepcion</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nivel de dolor (0-10)</label>
+          <input type="number" name="nivel_dolor" min="0" max="10" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Tratamiento requerido</label>
+        <select name="tipo_tratamiento_inferido">
+          <option value="">-- Seleccionar --</option>
+          <option value="Operatoria Dental">Operatoria Dental</option>
+          <option value="Endodoncia">Endodoncia</option>
+          <option value="Periodoncia">Periodoncia</option>
+          <option value="Cirugia Oral">Cirugia Oral</option>
+          <option value="Odontopediatria">Odontopediatria</option>
+          <option value="Preventiva">Preventiva</option>
+          <option value="Destartraje y Pulido Coronario">Destartraje y Pulido Coronario</option>
+          <option value="Implantologia">Implantologia</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Prioridad</label>
+        <select name="prioridad">
+          <option value="Baja">Baja</option>
+          <option value="Moderada" selected>Moderada</option>
+          <option value="Alta">Alta</option>
+          <option value="Muy Alta">Muy Alta</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Dias disponibles</label>
+        <input type="text" name="dias_disponibles" placeholder="ej: lunes, miercoles, viernes">
+      </div>
+      <div class="form-group">
+        <label>Horario preferencia</label>
+        <select name="horario_preferencia">
+          <option value="">-- Seleccionar --</option>
+          <option value="manana">Manana (8-12)</option>
+          <option value="tarde">Tarde (14-18)</option>
+          <option value="cualquiera">Cualquiera</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-submit">Registrar Paciente</button>
+    </form>
+  `);
+};
+
+window.submitPatient = async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = Object.fromEntries(new FormData(form));
+  data.edad = data.edad ? parseInt(data.edad) : null;
+  data.nivel_dolor = parseInt(data.nivel_dolor) || 0;
+
+  try {
+    const res = await fetch(CONFIG.API_BASE_URL + '/api/pacientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) throw new Error(result.error || 'Error al crear paciente');
+
+    closeModal();
+    app?.uiRenderer.toastManager.success('Paciente registrado exitosamente');
+    app?.loadPatientsData();
+  } catch (err) {
+    app?.uiRenderer.toastManager.error(err.message);
+  }
 };
 
 window.addStudent = function() {
-  console.log('➕ Adding new student');
-  app?.uiRenderer.toastManager.info('Formulario de estudiante próximamente', 3000);
+  openModal('Nuevo Estudiante', `
+    <form id="student-form" onsubmit="submitStudent(event)">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nombre completo *</label>
+          <input type="text" name="nombre_completo" required>
+        </div>
+        <div class="form-group">
+          <label>Ano de carrera *</label>
+          <select name="año_carrera" required>
+            <option value="4to">4to</option>
+            <option value="5to">5to</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Telefono</label>
+          <input type="tel" name="telefono">
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" name="email" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Ciudad *</label>
+        <select name="ciudad" required>
+          <option value="Metropolitana">Metropolitana</option>
+          <option value="Valparaiso">Valparaiso</option>
+          <option value="Concepcion">Concepcion</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-submit">Registrar Estudiante</button>
+    </form>
+  `);
+};
+
+window.submitStudent = async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = Object.fromEntries(new FormData(form));
+
+  try {
+    const res = await fetch(CONFIG.API_BASE_URL + '/api/estudiantes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) throw new Error(result.error || 'Error al crear estudiante');
+
+    closeModal();
+    app?.uiRenderer.toastManager.success('Estudiante registrado exitosamente');
+    app?.loadStudentsData();
+  } catch (err) {
+    app?.uiRenderer.toastManager.error(err.message);
+  }
 };
 
 window.runMatching = function() {
@@ -2320,19 +2614,26 @@ let toastManager = null;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
+  // Setup login form handler
+  const loginForm = document.getElementById('login-form');
+  if (loginForm) loginForm.addEventListener('submit', handleLogin);
+
+  // Check auth - if not logged in, show login and stop
+  if (!checkAuthOnLoad()) return;
+
   try {
-    console.log('🌟 Initializing Dental Matching Pro...');
-    
+    console.log('Initializing Dental Matching Pro...');
+
     // Initialize global services
     toastManager = new ToastManager();
     window.toastManager = toastManager;
-    
+
     // Initialize main application
     app = new DentalMatchingApp();
     window.app = app; // Make available globally for debugging
-    
+
     await app.init();
-    
+
     // Load saved theme
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {

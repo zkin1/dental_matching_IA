@@ -14,7 +14,32 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMyNTYzZWIiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0ibTEyIDIgNC45IDcuNEwyNCA4bC03IDFMMTkuMSAyMiAxMiAxNS40IDQuOSAyMiA3IDlsLTctMSA3LjEtNC42eiIvPjwvc3ZnPg==">
 </head>
 <body>
-    <div class="app-layout">
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <i class="fas fa-tooth login-logo"></i>
+                <h1>Dental Matching Pro</h1>
+                <p>Sistema de matching dental inteligente</p>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" placeholder="admin@dentalmatching.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Contrasena</label>
+                    <input type="password" id="login-password" placeholder="Tu contrasena" required autocomplete="current-password">
+                </div>
+                <div id="login-error" class="login-error" style="display:none;"></div>
+                <button type="submit" class="btn btn-primary login-btn" id="login-submit">
+                    <i class="fas fa-sign-in-alt"></i> Iniciar Sesion
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="app-layout" id="app-layout" style="display:none;">
         <!-- Sidebar Navigation -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -64,10 +89,13 @@
                         <i class="fas fa-user-shield"></i>
                     </div>
                     <div class="user-info">
-                        <div class="user-name">Administrador</div>
-                        <div class="user-role">Sistema</div>
+                        <div class="user-name" id="user-display-name">Administrador</div>
+                        <div class="user-role" id="user-display-role">Sistema</div>
                     </div>
                 </div>
+                <button class="btn-icon" onclick="logout()" title="Cerrar sesion" style="margin-top:8px;color:#ef4444;">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
             </div>
         </aside>
 
@@ -589,6 +617,16 @@
     <!-- Toast Notifications -->
     <div class="toast-container" id="toastContainer"></div>
 
+    <!-- Modal Overlay -->
+    <div id="modal-overlay" class="modal-overlay" style="display:none;" onclick="closeModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modal-title">Modal</h3>
+                <button class="btn-icon" onclick="closeModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>

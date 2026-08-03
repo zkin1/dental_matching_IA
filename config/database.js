@@ -52,7 +52,7 @@ class DatabaseService {
       timezone: 'Z',
       multipleStatements: false,
       dateStrings: true,
-      namedPlaceholders: true,
+      namedPlaceholders: false,
       ssl: process.env.DB_SSL === 'true' ? {
         rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false'
       } : false

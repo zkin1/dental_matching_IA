@@ -1,8 +1,4 @@
 const express = require('express');
-const patientRoutes = require('./patientRoutes');
-const studentRoutes = require('./studentRoutes');
-const assignmentRoutes = require('./assignmentRoutes');
-const matchingRoutes = require('./matchingRoutes');
 const authRoutes = require('./authRoutes');
 
 const router = express.Router();
@@ -32,10 +28,10 @@ router.get('/health', async (req, res) => {
             const [assignmentsCount] = await pool.query('SELECT COUNT(*) as count FROM asignaciones');
             
             stats = {
-                pacientes: patientsCount.count,
-                estudiantes: studentsCount.count,
-                asignaciones: assignmentsCount.count,
-                dbRecords: patientsCount.count + studentsCount.count + assignmentsCount.count
+                pacientes: patientsCount[0]?.count || 0,
+                estudiantes: studentsCount[0]?.count || 0,
+                asignaciones: assignmentsCount[0]?.count || 0,
+                dbRecords: (patientsCount[0]?.count || 0) + (studentsCount[0]?.count || 0) + (assignmentsCount[0]?.count || 0)
             };
         } catch (dbError) {
             console.warn('Database connection failed in health check:', dbError.message);
@@ -113,10 +109,6 @@ router.get('/info', (req, res) => {
 
 // Registrar rutas de módulos
 router.use('/auth', authRoutes);
-router.use('/patients', patientRoutes);
-router.use('/students', studentRoutes);
-router.use('/assignments', assignmentRoutes);
-router.use('/matching', matchingRoutes);
 
 // Endpoint para listar todas las rutas disponibles
 router.get('/routes', (req, res) => {

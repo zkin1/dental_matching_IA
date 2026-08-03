@@ -173,8 +173,8 @@ coverage/
 # Development and testing files
 dev-*.js
 test-*.js
-*.test.js
 *.spec.js
+/test-results/
 
 # Temporary files
 *.tmp
@@ -193,3 +193,17 @@ test-email*.html
 # Scripts temporales
 scripts/temp-*
 scripts/test-*
+
+# Python artifacts
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Benchmark results (regenerables, no commitear)
+benchmark/results/
+
+# Dataset descargado localmente (no commitear)
+DatasetDescargado/

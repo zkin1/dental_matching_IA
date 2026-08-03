@@ -108,8 +108,16 @@ app.use((req, res, next) => {
  * CONFIGURACIÓN DE ARCHIVOS ESTÁTICOS
  */
 
-// Servir archivos estáticos con caché
-app.use('/static', express.static('public', {
+// Servir frontend React (client/dist) o fallback a public/
+const path = require('path');
+const clientDist = path.join(__dirname, '..', 'client', 'dist');
+const publicDir = path.join(__dirname, '..', 'public');
+
+// Intentar servir desde client/dist (React build), fallback a public/
+const fs = require('fs');
+const frontendDir = fs.existsSync(clientDist) ? clientDist : publicDir;
+
+app.use(express.static(frontendDir, {
     maxAge: process.env.NODE_ENV === 'production' ? '7d' : '0',
     etag: true,
     lastModified: true
@@ -118,14 +126,6 @@ app.use('/static', express.static('public', {
 /**
  * RUTAS PRINCIPALES
  */
-
-// Servir archivos estáticos desde la carpeta public
-app.use(express.static('public'));
-
-// Ruta raíz - servir index.html
-app.get('/', (req, res) => {
-    res.sendFile(require('path').join(__dirname, '..', 'public', 'index.html'));
-});
 
 // Ruta de API info (mantener para compatibilidad)
 app.get('/api', (req, res) => {
@@ -192,18 +192,6 @@ app.use('/api/patients', rateLimiter.strictLimiter());
 app.use('/api/students', rateLimiter.strictLimiter());
 app.use('/api/assignments/manual', rateLimiter.strictLimiter());
 
-// Middleware de cache para rutas específicas
-const cacheStrategies = require('./infrastructure/cache/cacheStrategies');
-const cacheService = require('./infrastructure/cache/cacheService');
-
-// Inicializar estrategias de cache
-const strategies = new cacheStrategies(cacheService);
-
-// Cache para consultas frecuentes
-app.use('/api/patients', strategies.routeCache({ ttl: 300 })); // 5 min
-app.use('/api/students', strategies.routeCache({ ttl: 300 })); // 5 min
-app.use('/api/assignments', strategies.routeCache({ ttl: 180 })); // 3 min
-
 // Servicio de base de datos unificado y simplificado
 const databaseService = require('../config/database');
 
@@ -220,31 +208,26 @@ const databaseService = require('../config/database');
 
 app.use(databaseService.middleware());
 
-// Middleware de cache para todas las rutas
-app.use(cacheService.middleware());
-
 // Registrar todas las rutas API
 app.use('/api', apiRoutes);
 
 /**
- * RUTAS DE DESARROLLO (solo en development)
+ * RUTAS DE DATOS (pacientes, estudiantes, asignaciones)
  */
-if (process.env.NODE_ENV === 'development') {
-    try {
-        const pacientesRoutes = require('../routes/pacientes');
-        const estudiantesRoutes = require('../routes/estudiantes'); 
-        const asignacionesRoutes = require('../routes/asignaciones');
-        
-        app.use('/api/pacientes', pacientesRoutes);
-        app.use('/api/estudiantes', estudiantesRoutes);
-        app.use('/api/asignaciones', asignacionesRoutes);
-        
-        loggerService.info('Development routes mounted successfully', {
-            routes: ['/api/pacientes', '/api/estudiantes', '/api/asignaciones']
-        });
-    } catch (devError) {
-        loggerService.warn('Failed to mount development routes', { error: devError.message });
-    }
+try {
+    const pacientesRoutes = require('../routes/pacientes');
+    const estudiantesRoutes = require('../routes/estudiantes');
+    const asignacionesRoutes = require('../routes/asignaciones');
+
+    app.use('/api/pacientes', pacientesRoutes);
+    app.use('/api/estudiantes', estudiantesRoutes);
+    app.use('/api/asignaciones', asignacionesRoutes);
+
+    loggerService.info('Data routes mounted successfully', {
+        routes: ['/api/pacientes', '/api/estudiantes', '/api/asignaciones']
+    });
+} catch (routeError) {
+    loggerService.warn('Failed to mount data routes', { error: routeError.message });
 }
 
 /**
@@ -253,6 +236,17 @@ if (process.env.NODE_ENV === 'development') {
 
 // Middleware de logging de errores enterprise
 app.use(loggerService.errorLogger());
+
+// SPA catch-all: serve index.html for non-API routes (React Router)
+app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    const indexPath = path.join(frontendDir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        next();
+    }
+});
 
 // Middleware para rutas no encontradas
 app.use(notFoundHandler);

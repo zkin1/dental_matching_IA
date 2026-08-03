@@ -77,6 +77,31 @@ router.get('/asignaciones/count', async (req, res) => {
 });
 
 /**
+ * Obtener estadísticas resumidas del dashboard (usado por el frontend React)
+ */
+router.get('/stats', async (req, res) => {
+    try {
+        const pacientes = await executeQuery('SELECT COUNT(*) as count FROM pacientes WHERE activo = 1');
+        const estudiantes = await executeQuery('SELECT COUNT(*) as count FROM estudiantes_odontologia WHERE estado = ?', ['activo']);
+        const asignaciones = await executeQuery('SELECT COUNT(*) as count FROM asignaciones');
+        const scoreResult = await executeQuery('SELECT AVG(score_compatibilidad) as avg_score FROM asignaciones WHERE score_compatibilidad > 0');
+
+        res.json({
+            success: true,
+            data: {
+                pacientes: pacientes.rows[0].count,
+                estudiantes: estudiantes.rows[0].count,
+                asignaciones: asignaciones.rows[0].count,
+                scorePromedio: scoreResult.rows[0].avg_score || 0
+            }
+        });
+    } catch (error) {
+        console.error('Error obteniendo stats:', error);
+        res.status(500).json({ success: false, error: 'Error obteniendo estadisticas' });
+    }
+});
+
+/**
  * Obtener estadísticas completas del dashboard
  */
 router.get('/stats/overview', async (req, res) => {

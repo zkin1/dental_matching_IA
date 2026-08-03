@@ -9,7 +9,7 @@ const cors = require('cors');
 class SecurityConfig {
   constructor() {
     this.environment = process.env.NODE_ENV || 'development';
-    this.isDevelopment = this.environment === 'development';
+    this.isDevelopment = this.environment === 'development' || this.environment === 'test';
     this.isProduction = this.environment === 'production';
   }
 

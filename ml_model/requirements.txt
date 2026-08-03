@@ -1,0 +1,4 @@
+gradio
+pandas
+scikit-learn
+joblib
