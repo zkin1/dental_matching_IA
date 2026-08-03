@@ -12,6 +12,11 @@ modelo RandomForest v4 con un dataset sintético de 3.000 casos, se compara cont
 agente LLM en el benchmark Fase A, y se ejecutan self-checks del agente y flujos de
 prueba del modelo. Aún no está cableado end-to-end al backend de producción.
 
+**Decisión de triaje en producción**: mientras se perfecciona el modelo ML
+(RandomForest v4) para que supere al agente LLM, **nos quedamos con el `ai_agent`
+(LLM) como motor de triaje**. El modelo RF v4 queda como referencia y objetivo a superar;
+`SymptomAnalyzer` JS local sigue siendo el fallback si el LLM no está disponible.
+
 ## Stack
 
 | Capa | Tecnología |
@@ -32,9 +37,10 @@ prueba del modelo. Aún no está cableado end-to-end al backend de producción.
 
 ## Características
 
-- Triaje de síntomas con `SymptomAnalyzer` (NLP local en JS) como motor de producción.
-- `ai_agent` (LLM) y `ml_model` (RandomForest v4) como servicios Python independientes
-  en validación; aún no cableados al flujo de producción.
+- Triaje de síntomas con `ai_agent` (LLM) como motor principal, y `SymptomAnalyzer`
+  (NLP local en JS) como fallback si el LLM no responde.
+- `ml_model` (RandomForest v4) como servicio Python independiente en perfeccionamiento;
+  objetivo a superar al agente LLM, aún no cableado al flujo de producción.
 - Matching automático v3/v4 por especialidad, horario, urgencia y edad → clínica.
 - Frontend React 19 con Login, Dashboard, Patients, Students, Matching y Assignments.
 - Notificaciones por email (no WebSocket/tiempo real).
@@ -51,11 +57,11 @@ prueba del modelo. Aún no está cableado end-to-end al backend de producción.
 | Matching Engine | Funcional | Node.js | `services/matchingService.js` v4. |
 | Email | Funcional | Nodemailer | Gmail SMTP. |
 | MySQL + migraciones | Funcional | mysql2 | Migraciones automáticas en startup. |
-| ai_agent (LLM) | Parcial | Python + FastAPI | Endpoint `/pre-categorize` funciona; self-check en `agent.py`; no cableado al backend. |
-| ml_model (RF v4) | Parcial | Python + scikit-learn | Modelo entrenado con dataset sintético v4; tests de flujo en `demos/test_v4_flow.py`; no integrado en runtime de matching. |
+| ai_agent (LLM) | **Triaje en producción** | Python + FastAPI | Endpoint `/pre-categorize` + self-check en `agent.py`. Elegido como motor de triaje mientras se perfecciona el RF v4. |
+| ml_model (RF v4) | **En perfeccionamiento** | Python + scikit-learn | Modelo entrenado con dataset sintético v4; tests de flujo en `demos/test_v4_flow.py`; objetivo a superar al agente LLM, no integrado en runtime. |
 | Benchmark Fase A | Completado | Python script | Resultados en `benchmark/results/`. |
 | Swagger UI | No montado | swagger-jsdoc/ui | Dependencias declaradas, no instanciadas en `app.js`. |
-| Tests Node | Mínimos | Jest + supertest | 4 archivos en `src/tests/`. |
+| Tests Node | Mínimos | Jest + supertest | 4 archivos en `src/tests/`; cobertura reportada **0%** (el reporte `coverage/` existe pero no colecta). |
 | Tests Python | Self-checks / flujos | Scripts Python | `agent.py::_self_check`, `demos/test_v4_flow.py`, entrenamiento con train/test split. |
 | WebSocket | No existe | — | Notificaciones son por email. |
 
@@ -87,8 +93,9 @@ prueba del modelo. Aún no está cableado end-to-end al backend de producción.
                                  → tratamiento (5 clases)
 ```
 
-En producción el triaje se hace con `SymptomAnalyzer` (JS local). `ai_agent` y
-`ml_model` son servicios independientes que aún no forman parte del pipeline runtime.
+En producción el triaje se hace con `ai_agent` (LLM) cuando está disponible,
+con `SymptomAnalyzer` (JS local) como fallback. `ml_model` (RandomForest v4) es un
+servicio de referencia en perfeccionamiento que aún no forma parte del pipeline runtime.
 
 ## Estructura del repo
 
@@ -97,21 +104,49 @@ dental_matching/
 ├── server.js                  # Entry point: migraciones auto, graceful shutdown
 ├── src/                       # Arquitectura Clean
 │   ├── app.js                 # Express app
-│   ├── core/                  # Entidades + SymptomAnalyzer
-│   ├── application/           # Casos de uso (Auth, Patient, Student, Assignment, Matching)
-│   ├── infrastructure/        # DB, cache, logging, security, repositories
-│   ├── presentation/          # Routes + controllers (solo auth implementado en Clean)
-│   └── tests/                 # Tests unitarios e integración (mínimos)
+│   ├── core/
+│   │   ├── ai/SymptomAnalyzer.js
+│   │   └── entities/          # Assignment, Patient, Student
+│   ├── application/
+│   │   ├── dtos/UserDTO.js
+│   │   └── services/          # Auth, Patient, Student, Assignment, IntelligentMatching
+│   ├── infrastructure/
+│   │   ├── auth/              # authController, jwtService
+│   │   ├── cache/cacheService.js
+│   │   ├── database/          # databaseService, indexOptimizer, legacyAdapter, migrationManager + migrations/
+│   │   ├── health/            # healthChecker, systemMetrics
+│   │   ├── logging/logger.js
+│   │   ├── repositories/      # Base, Patient, Student, Assignment, User
+│   │   ├── security/          # inputSanitizer, rateLimiter, securityConfig
+│   │   └── validation/        # schemas, validator
+│   ├── presentation/
+│   │   ├── controllers/AuthController.js
+│   │   └── routes/            # authRoutes, index
+│   ├── shared/
+│   │   ├── errors/AppError.js
+│   │   ├── middleware/        # auth, errorHandler, validation
+│   │   └── utils/               # logger, productionLogger, globalLoggerSetup, errorHandlerHelper
+│   └── tests/                 # unit + integration + setup.js
 ├── routes/                    # Rutas legacy (pacientes, estudiantes, asignaciones, matching, dashboard, student)
 ├── services/                  # matchingService, autoNotificationService, emailTemplateService, studentCodeService
-├── client/                    # Frontend React/Vite
-├── ai_agent/                  # Python FastAPI — triaje con LLM
+├── config/                    # database.js, logger.js, security.js
+├── scripts/                   # migrate.js, migrate_database.js, create-admin.js, clean-test-data.js, cleanup-tables.js, insert-patient-schedules.js
+├── client/                    # Frontend React 19/Vite
+│   └── src/
+│       ├── pages/             # Login, Dashboard, Patients, Students, Matching, Assignments
+│       ├── components/        # ErrorBoundary, Layout, Toast
+│       ├── hooks/useAuth.jsx
+│       └── lib/api.js
+├── public/                    # Fallback estático (app.js, index.html, styles.css, dashboard-enhanced.css)
+├── ai_agent/                  # Python FastAPI — triaje con LLM (motor de producción)
 │   ├── agent.py               # Pre-categorización + parser JSON + self-check
 │   ├── llm_client.py          # Cliente LLM genérico (Ollama/OpenAI-compatible)
 │   ├── prompts.py             # Prompts y schema de 23 features
 │   ├── server.py              # FastAPI /pre-categorize + /health
+│   ├── Dockerfile
+│   ├── .env.example
 │   └── requirements.txt
-├── ml_model/                  # Python — RandomForest v4
+├── ml_model/                  # Python — RandomForest v4 (en perfeccionamiento)
 │   ├── data/
 │   │   └── dataset_triaje_dental_v4.csv   # Dataset sintético (3.000 filas, 23 features, 5 clases)
 │   ├── models/
@@ -126,11 +161,21 @@ dental_matching/
 │   └── requirements.txt
 ├── benchmark/                 # Fase A: comparación ai_agent vs ml_model
 │   ├── cases.json             # 7 casos de prueba con ground truth
+│   ├── requirements.txt
 │   ├── run_benchmark.py       # Script de benchmark
 │   └── results/               # CSV + JSON de resultados
+├── DatasetDescargado/         # Fuente local del benchmark (extracted_all.jsonl, gitignored)
+├── database/                  # users_table.sql
 ├── database_schema.sql        # Schema completo
 ├── docker-compose.yml         # db + app + ai-agent
-├── ecosystem.config.js        # PM2 cluster
+├── Dockerfile                 # Imagen backend
+├── nginx.conf                 # Reverse proxy prod
+├── ecosystem.config.js        # PM2 cluster (con keys inválidas — ver problemas conocidos)
+├── jest.config.js             # Config tests
+├── install.sh, migrate.sh, start-dev.sh
+├── test-complete-flow.js      # Prueba manual de flujo (gitignored)
+├── test-email-system.js      # Prueba manual de emails (gitignored)
+├── test-email-templates.js    # Prueba manual de plantillas (gitignored)
 ├── .env.example / env.example # Variables de entorno
 └── README.md / CLAUDE.md      # Documentación
 ```
@@ -230,7 +275,7 @@ cd client && npm install && cd ..
 ### Desarrollo
 
 ```bash
-# Backend + abrir navegador en :3002
+# Backend + abrir navegador en :3002 (usa PORT=3002 del .env)
 npm run dev
 
 # Solo backend
@@ -240,10 +285,13 @@ npm run dev:server-only
 cd client && npm run dev
 ```
 
+> **Nota**: `npm run dev:win` referencia `start-dev.bat` que **no existe** (solo está
+> `start-dev.sh` para Unix). En Windows usar `npm run dev` directamente.
+
 ### Tests / lint
 
 ```bash
-# Node
+# Node (cobertura reportada 0% — el reporte coverage/ existe pero no colecta)
 npm test
 npm run test:coverage
 npm run lint
@@ -257,18 +305,31 @@ cd ml_model && python demos/test_v4_flow.py
 
 # Python entrenamiento + evaluación
 cd ml_model && python scripts/entrenar_modelo_v4.py
+
+# Scripts manuales de flujo (gitignored, en raíz del repo)
+node test-complete-flow.js      # flujo completo de asignación con emails
+node test-email-system.js
+node test-email-templates.js
 ```
 
-> Cobertura real de Node no confirmada; suite actual es mínima.
+> Cobertura real de Node: **0%** (`coverage/index.html` muestra 0/4849 statements). La
+> suite actual es mínima y el reporte no colecta cobertura real.
 
 ### Base de datos
 
 ```bash
-npm run migrate          # migraciones automáticas
-npm run db:seed          # datos de prueba
-npm run db:reset         # rollback + migrate + seed
-npm run db:create-admin  # crea usuario admin
+npm run migrate          # migraciones automáticas (scripts/migrate.js)
+npm run migrate:status
+npm run migrate:create
+npm run migrate:rollback
+npm run db:clean         # limpia datos de test (scripts/clean-test-data.js)
+npm run db:create-admin  # crea usuario admin (scripts/create-admin.js)
 ```
+
+> **Nota**: `npm run db:seed` y `npm run db:reset` referencian `scripts/seed.js` que
+> **no existe** — ambos comandos fallan. Scripts adicionales no expuestos en npm:
+> `scripts/migrate_database.js`, `scripts/cleanup-tables.js`,
+> `scripts/insert-patient-schedules.js`.
 
 ### Build y producción
 
@@ -321,8 +382,9 @@ Ver `.env.example` para el listado completo.
 
 ## Benchmark Fase A — Resultados
 
-Comparación de `ai_agent` (LLM) vs `ml_model` (RandomForest v4) sobre 7 casos del
-`Lines/Open-Domain-Oral-Disease-QA-Dataset`.
+Comparación de `ai_agent` (LLM) vs `ml_model` (RandomForest v4) sobre 7 casos
+derivados de `DatasetDescargado/extracted_all.jsonl` (dataset
+`Lines/Open-Domain-Oral-Disease-QA-Dataset`, gitignored por tamaño).
 
 | Métrica | ai_agent (LLM) | ml_model (RF v4) |
 |---------|---------------|------------------|
@@ -346,12 +408,15 @@ Comparación de `ai_agent` (LLM) vs `ml_model` (RandomForest v4) sobre 7 casos d
 
 ## Problemas conocidos abiertos
 
+- `scripts/seed.js` no existe → `npm run db:seed` y `npm run db:reset` fallan.
+- `start-dev.bat` no existe → `npm run dev:win` falla en Windows (usar `npm run dev`).
+- Cobertura Node: 0% (reporte `coverage/` generado pero los tests no colectan cobertura real).
 - Swagger UI declarado pero no montado (`/api/docs` devuelve 404).
-- `ai_agent` y `ml_model` no están cableados al flujo de producción.
+- `ai_agent` y `ml_model` no están cableados end-to-end al backend de producción.
 - Double registro de signal handlers en `server.js` y `src/app.js`.
-- Proxy de Vite apunta a `:3000` pero el backend en dev usa `:3002`.
+- Proxy de Vite apunta a `:3000` pero el backend en dev usa `:3002` (vía `.env`).
 - Tests Node mínimos; tests Python son self-checks y flujos, no suite formal.
-- `ecosystem.config.js` usa keys no válidas de PM2 (`env_file`, `env_staging`).
+- `ecosystem.config.js` usa keys no válidas de PM2 (`env_file`, `env_staging`, `health_check_*`, `notify`, `monitoring`).
 
 ## Notas
 
@@ -365,6 +430,10 @@ Comparación de `ai_agent` (LLM) vs `ml_model` (RandomForest v4) sobre 7 casos d
   dependencias con Node.
 - El dataset ML v4 es sintético; los resultados del benchmark Fase A usan un
   dataset externo de 7 casos de enfermedades orales.
+- El triaje en producción usa el **`ai_agent` (LLM)** como motor principal
+  mientras se perfecciona el modelo ML v4 para que lo supere. `SymptomAnalyzer`
+  (JS local) es el fallback si el LLM no está disponible. El `ml_model` RF v4
+  queda como referencia y objetivo.
 
 ## Documentación
 

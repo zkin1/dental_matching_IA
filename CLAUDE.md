@@ -2,7 +2,7 @@
 
 ## Descripción
 
-Sistema empresarial de matching entre pacientes y estudiantes de odontología. Recibe síntomas del paciente, infiere tratamiento/urgencia/especialidad, asigna al estudiante compatible (especialidad + horario + clínica) y notifica por email. Backend Node/Express con arquitectura Clean, frontend React/Vite, agente Python (LLM) para triaje y modelo ML RandomForest para predicción de tratamiento.
+Sistema empresarial de matching entre pacientes y estudiantes de odontología. Recibe síntomas del paciente, infiere tratamiento/urgencia/especialidad, asigna al estudiante compatible (especialidad + horario + clínica) y notifica por email. Backend Node/Express con arquitectura Clean, frontend React/Vite, agente Python (LLM) como motor de triaje en producción y modelo ML RandomForest v4 como referencia en perfeccionamiento.
 
 ## Stack
 
@@ -31,32 +31,38 @@ dental_matching/
 ├── server.js              # Entry: arranca app, migraciones auto, graceful shutdown
 ├── src/
 │   ├── app.js             # Express app: middleware security/rate/log, monta rutas
-│   ├── core/              # Dominio: entidades + ai/SymptomAnalyzer (NLP síntomas→tratamiento)
+│   ├── core/              # Dominio: entities/ (Assignment, Patient, Student) + ai/SymptomAnalyzer (NLP fallback)
 │   ├── application/       # Servicios de caso de uso (Auth/Patient/Student/Assignment/IntelligentMatching) + dtos
 │   ├── infrastructure/    # auth, cache, database, health, logging, repositories, security, validation
-│   ├── presentation/      # controllers + routes (authRoutes, index)
-│   ├── shared/            # errors, middleware (errorHandler), utils (logger)
-│   └── tests/             # tests unit/integration
+│   ├── presentation/      # controllers/AuthController + routes (authRoutes, index)
+│   ├── shared/            # errors/AppError, middleware (auth, errorHandler, validation), utils (logger, productionLogger, globalLoggerSetup)
+│   └── tests/             # unit (cache, scoring, validation) + integration (api) + setup.js
 ├── routes/                # Rutas legacy (pacientes, estudiantes, asignaciones, matching, dashboard, student)
-├── services/              # matchingService (IA v3.0/v4.0 scoring), autoNotificationService, emailTemplateService, studentCodeService
+├── services/              # matchingService, autoNotificationService, emailTemplateService, studentCodeService
 ├── config/                # database.js (pool mysql2), logger.js, security.js
-├── scripts/               # migrate.js, seed.js, create-admin.js, clean-test-data.js, insert-patient-schedules.js
+├── scripts/               # migrate.js, migrate_database.js, create-admin.js, clean-test-data.js, cleanup-tables.js, insert-patient-schedules.js
 ├── database/              # users_table.sql
 ├── database_schema.sql    # Dump completo del schema (ai_matching_results, asignaciones, pacientes, estudiantes_odontologia, etc.)
-├── client/                # Frontend React/Vite (pages: Login, Dashboard, Patients, Students, Matching, Assignments)
-├── ai_agent/              # Servicio Python FastAPI: /pre-categorize (LLM → 23 features V4)
-├── ml_model/              # Modelo RandomForest V4 (joblib), dataset, scripts entrenar/generar, demos Gradio
-├── public/                # Frontend fallback estático
-├── uploads/               # Archivos subidos
-├── logs/                  # Logs Winston (rotación diaria)
-├── test-results/          # Salida de tests
-├── ecosystem.config.js    # PM2 cluster + deploy staging/prod
+├── client/                # Frontend React/Vite (pages: Login, Dashboard, Patients, Students, Matching, Assignments; components: ErrorBoundary, Layout, Toast; hooks/useAuth; lib/api)
+├── ai_agent/              # Servicio Python FastAPI: /pre-categorize (LLM → 23 features V4); motor de triaje en producción
+├── ml_model/              # Modelo RandomForest V4 (joblib), dataset, scripts entrenar/generar, demos
+├── public/                # Frontend fallback estático (app.js, index.html, styles.css, dashboard-enhanced.css)
+├── uploads/               # Archivos subidos (gitignored)
+├── logs/                  # Logs Winston (rotación diaria, gitignored)
+├── test-results/          # Salida de tests (gitignored)
+├── coverage/              # Cobertura de tests (gitignored, actualmente 0%)
+├── benchmark/             # Fase A: comparación ai_agent vs ml_model
+│   ├── cases.json, requirements.txt, run_benchmark.py
+│   └── results/ (agent_results.csv, model_results.csv, summary.json)
+├── DatasetDescargado/     # Fuente local del benchmark (extracted_all.jsonl, gitignored)
+├── ecosystem.config.js    # PM2 cluster + deploy staging/prod (tiene keys inválidas de PM2)
 ├── docker-compose.yml     # db (mysql) + app + ai-agent
 ├── Dockerfile             # Imagen backend
 ├── nginx.conf             # Reverse proxy prod
 ├── jest.config.js         # Config tests
 ├── .env.example / env.example  # Variables de entorno
-└── start-dev.sh / install.sh / migrate.sh
+├── install.sh, migrate.sh, start-dev.sh
+└── README.md / CLAUDE.md  # Documentación
 ```
 
 ## Comandos
@@ -67,7 +73,7 @@ npm install
 cd client && npm install && cd ..
 
 # Dev (backend + abre browser en :3002)
-npm run dev                 # Windows: npm run dev:win
+npm run dev                 # Windows: npm run dev:win (referencia a start-dev.bat que no existe; usar npm run dev)
 npm run dev:server-only     # solo backend (nodemon)
 cd client && npm run dev    # frontend Vite aparte
 
@@ -88,10 +94,10 @@ npm run migrate             # aplica migraciones pendientes
 npm run migrate:status
 npm run migrate:create
 npm run migrate:rollback
-npm run db:seed
-npm run db:reset            # rollback + migrate + seed
+# npm run db:seed           # scripts/seed.js NO existe (comando roto)
+# npm run db:reset          # depende de db:seed (comando roto)
 npm run db:clean            # limpia datos de test
-npm run db:create-admin
+npm run db:create-admin     # crea usuario admin
 
 # Build / validate
 npm run build              # lint + test
@@ -164,9 +170,10 @@ python scripts/entrenar_modelo_v4.py    # reentrena
 - **Frágil**: matching legacy (`routes/matching.js`) tiene rate limiter propio con `max: 10000` en dev — no bajar en prod.
 - **Dependencia externa crítica**: Ollama (o LLM API) debe estar corriendo para que el AI Agent funcione; sin él, `ai_agent` falla pero el backend Node sigue operativo (matching usa `SymptomAnalyzer` local como fallback).
 - **Dependencia externa crítica**: MySQL debe estar up antes del backend; migraciones auto-corren en startup pero no crean la DB (`DB_NAME` debe existir).
-- **No commitear** `logs/`, `uploads/`, `coverage/`, `test-results/`, `node_modules/`, `client/dist/`, `.env` (ver `.gitignore`).
+- **No commitear** `logs/`, `uploads/`, `coverage/`, `test-results/`, `node_modules/`, `client/dist/`, `.env`, `DatasetDescargado/`, `benchmark/results/` (ver `.gitignore`).
 - **Frontend** se sirve desde `client/dist` si existe, sino `public/` — no borrar `public/` (fallback).
 - **AI Agent** y **ML Model** son servicios Python independientes con su propio `requirements.txt` y venv; no mezclar con deps Node.
+- **AI Agent** es el motor de triaje en producción; **ML Model** RF v4 es referencia/objetivo a superar.
 
 ## Estado actual
 
@@ -175,23 +182,29 @@ python scripts/entrenar_modelo_v4.py    # reentrena
 - Auth JWT (login/refresh) vía `src/presentation/routes/authRoutes.js`.
 - CRUD pacientes/estudiantes/asignaciones (legacy + enterprise).
 - Matching IA v3.0/v4.0 con scoring por horario, especialidad, urgencia, edad→clínica.
-- `SymptomAnalyzer` local (NLP basado en patrones) como fallback sin LLM.
 - Notificaciones email automáticas (Gmail) + plantillas (`emailTemplateService`).
 - Migraciones automáticas en startup.
 - Health checks (DB + cache), métricas de sistema, logging Winston rotativo.
 - Frontend React 19 (Login, Dashboard, Patients, Students, Matching, Assignments).
 - Docker compose (db + app + ai-agent).
 - PM2 ecosystem (cluster, deploy staging/prod).
+- AI Agent Python (`ai_agent/`): FastAPI `/pre-categorize` con LLM → 23 features V4. Requiere Ollama/API externa corriendo; elegido como **motor de triaje en producción** mientras se perfecciona el modelo ML.
+- ML Model V4 (`ml_model/`): RandomForest entrenado + tests de flujo; referencia y objetivo a superar al agente LLM.
 
 **En progreso / parcial:**
-- AI Agent Python (`ai_agent/`): FastAPI `/pre-categorize` con LLM → 23 features V4. Requiere Ollama/API externa corriendo; integración con backend Node no está cableada end-to-end (servicio existe pero flujo paciente→agent→ML→matching es manual).
-- ML Model V4 (`ml_model/`): RandomForest entrenado + demos Gradio; no integrado en pipeline de matching en runtime (matching usa `SymptomAnalyzer` JS local, no el modelo Python).
+- Integración end-to-end: flujo paciente → `ai_agent` (LLM) → `matchingService` no está cableado todavía; `SymptomAnalyzer` JS local es el fallback si LLM no responde.
 - Swagger docs (`/api/docs`) declarado en dependencias pero no verificado montado en `app.js`.
-- Tests: config Jest presente, `src/tests/` existe; cobertura real del código legacy/enterprise no confirmada.
+- Tests: config Jest presente, `src/tests/` existe; cobertura reportada **0%** (`coverage/index.html` muestra 0/4849 statements).
+- `scripts/seed.js` no existe → `npm run db:seed` y `npm run db:reset` fallan.
+- `start-dev.bat` no existe → `npm run dev:win` falla en Windows (usar `npm run dev`).
+- `ecosystem.config.js` usa keys inválidas de PM2 (`env_file`, `env_staging`, `health_check_*`, `notify`, `monitoring`).
+- Double registro de signal handlers en `server.js` y `src/app.js`.
+- Proxy de Vite apunta a `:3000` pero el backend en dev usa `:3002` (vía `.env`).
 
 **TODOs conocidos:**
-- Cablear flujo end-to-end: paciente → ai_agent (LLM) → ml_model (predicción) → matchingService.
-- Integrar modelo Python V4 en el matching en lugar de (o junto a) `SymptomAnalyzer` JS.
+- Cablear flujo end-to-end: paciente → `ai_agent` (LLM) → `matchingService`.
+- Perfeccionar modelo ML V4 para que supere al agente LLM; luego integrarlo como opción principal.
 - Verificar/montar Swagger UI en `app.js`.
-- Confirmar cobertura de tests y completar suites faltantes.
-- `FRONTEND_URL` en `.env.example` apunta a :3000 pero `dev` arranca backend en :3002 — revisar consistencia de puertos en dev.
+- Crear `scripts/seed.js` o corregir `npm run db:seed`/`db:reset`.
+- Corregir `ecosystem.config.js` (keys inválidas de PM2) y consistencia de puertos dev (Vite proxy vs `.env`).
+- Completar suites de tests y hacer que la cobertura real se recoja.
